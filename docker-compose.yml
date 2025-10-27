@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  # Frontend SSR
+  frontend:
+    build:
+      context: .
+      dockerfile: packages/prono-front/Dockerfile
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_URL: http://localhost:3001/api
+      VITE_WS_URL: ws://localhost:3001/ws
+    depends_on:
+      - api
+    volumes:
+      - ./packages/prono-front/src:/app/src
+    networks:
+      - prono
+
+  # API Server
+  api:
+    build:
+      context: .
+      dockerfile: packages/prono-api/Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: development
+    networks:
+      - prono
+
+networks:
+  prono:
+    driver: bridge
