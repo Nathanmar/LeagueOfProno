@@ -1,0 +1,5 @@
+node_modules/
+dist/
+.gitlab-ci-local
+.pnpm-store
+.id_rsa
