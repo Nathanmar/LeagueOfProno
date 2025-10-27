@@ -9,6 +9,7 @@
  */
 
 import type * as http from "../http.js";
+import type * as matches from "../matches.js";
 import type * as migrations_importData from "../migrations/importData.js";
 
 import type {
@@ -27,6 +28,7 @@ import type {
  */
 declare const fullApi: ApiFromModules<{
   http: typeof http;
+  matches: typeof matches;
   "migrations/importData": typeof migrations_importData;
 }>;
 declare const fullApiWithMounts: typeof fullApi;
