@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { currentUser } from "../data/mockData";
 import { Avatar, AvatarFallback } from "./ui/avatar";
+import { useAuth } from "../contexts/AuthContext";
 import {
 	Trophy,
 	Users,
 	ShoppingBag,
 	Home,
 	Menu,
-	X,
 	User,
 	LogOut,
 } from "lucide-react";
@@ -19,6 +19,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
+import { useNavigate } from "react-router";
 
 interface HeaderProps {
 	onNavigateToProfile: () => void;
@@ -38,6 +39,8 @@ export function Header({
 	currentView,
 }: HeaderProps) {
 	const [isOpen, setIsOpen] = useState(false);
+	const { isAuthenticated, logout } = useAuth();
+	const navigate = useNavigate();
 
 	const navItems = [
 		{
@@ -60,12 +63,98 @@ export function Header({
 		setIsOpen(false);
 	};
 
+	const handleLogoutClick = () => {
+		logout();
+		onLogout();
+		handleNavClick(() => navigate("/"));
+	};
+
+	// Si non authentifié, afficher header simple
+	if (!isAuthenticated) {
+		return (
+			<header className="border-b border-[#E5E4E1] bg-white sticky top-0 z-50">
+				<div className="max-w-7xl mx-auto px-4 sm:px-6">
+					<div className="flex items-center justify-between h-16">
+						{/* Logo - Left */}
+						<button
+							type="button"
+							onClick={onNavigateToDashboard}
+							className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+						>
+							<Trophy className="w-7 h-7 sm:w-8 sm:h-8 text-[#548CB4]" />
+							<span
+								className="text-lg sm:text-xl hidden sm:block"
+								style={{ fontWeight: 700 }}
+							>
+								League of Prono
+							</span>
+						</button>
+
+						{/* Spacer */}
+						<div className="flex-1" />
+
+						{/* Mobile Menu Button */}
+						<Sheet open={isOpen} onOpenChange={setIsOpen}>
+							<SheetTrigger asChild className="md:hidden">
+								<button
+									type="button"
+									className="p-2 hover:bg-[#F5F4F1] transition-colors rounded"
+								>
+									<Menu className="w-6 h-6 text-gray-600" />
+								</button>
+							</SheetTrigger>
+							<SheetContent
+								side="right"
+								className="w-[280px] sm:w-[350px] bg-white"
+							>
+								<SheetTitle className="sr-only">Menu de navigation</SheetTitle>
+								<div className="flex flex-col h-full gap-4 pt-4">
+									<button
+										type="button"
+										onClick={() => {
+											navigate("/auth");
+											setIsOpen(false);
+										}}
+										className="w-full px-4 py-3 bg-[#548CB4] text-white rounded-md hover:bg-[#4a7ca0] transition-colors"
+									>
+										Connexion / Inscription
+									</button>
+									<button
+										type="button"
+										onClick={() => {
+											navigate("/shop");
+											setIsOpen(false);
+										}}
+										className="w-full px-4 py-3 text-[#548CB4] border border-[#548CB4] rounded-md hover:bg-[#548CB4] hover:text-white transition-colors"
+									>
+										Boutique
+									</button>
+								</div>
+							</SheetContent>
+						</Sheet>
+
+						{/* Desktop Login Button */}
+						<button
+							type="button"
+							onClick={() => navigate("/auth")}
+							className="hidden md:block px-4 py-2 bg-[#548CB4] text-white rounded-md hover:bg-[#4a7ca0] transition-colors"
+						>
+							Connexion / Inscription
+						</button>
+					</div>
+				</div>
+			</header>
+		);
+	}
+
+	// Si authentifié, afficher header complet avec navigation
 	return (
 		<header className="border-b border-[#E5E4E1] bg-white sticky top-0 z-50">
 			<div className="max-w-7xl mx-auto px-4 sm:px-6">
 				<div className="flex items-center justify-between h-16">
 					{/* Logo - Left */}
 					<button
+						type="button"
 						onClick={onNavigateToDashboard}
 						className="flex items-center gap-2 hover:opacity-80 transition-opacity"
 					>
@@ -90,6 +179,7 @@ export function Header({
 							return (
 								<button
 									key={item.id}
+									type="button"
 									onClick={item.onClick}
 									className={`px-4 py-2 flex items-center gap-2 transition-all ${
 										isActive
@@ -109,7 +199,10 @@ export function Header({
 					{/* User Info - Right (Desktop) */}
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
-							<button className="hidden md:flex items-center gap-3 hover:bg-[#F5F4F1] px-3 py-2 transition-colors rounded">
+							<button
+								type="button"
+								className="hidden md:flex items-center gap-3 hover:bg-[#F5F4F1] px-3 py-2 transition-colors rounded"
+							>
 								<div className="text-right">
 									<div style={{ fontWeight: 600 }} className="text-sm">
 										{currentUser.name}
@@ -139,7 +232,7 @@ export function Header({
 							</DropdownMenuItem>
 							<DropdownMenuSeparator />
 							<DropdownMenuItem
-								onClick={onLogout}
+								onClick={handleLogoutClick}
 								className="cursor-pointer flex items-center gap-2 text-red-600 focus:text-red-600"
 							>
 								<LogOut className="w-4 h-4" />
@@ -151,7 +244,10 @@ export function Header({
 					{/* Mobile Menu Button */}
 					<Sheet open={isOpen} onOpenChange={setIsOpen}>
 						<SheetTrigger asChild className="md:hidden">
-							<button className="p-2 hover:bg-[#F5F4F1] transition-colors rounded">
+							<button
+								type="button"
+								className="p-2 hover:bg-[#F5F4F1] transition-colors rounded"
+							>
 								<Menu className="w-6 h-6 text-gray-600" />
 							</button>
 						</SheetTrigger>
@@ -163,6 +259,7 @@ export function Header({
 							<div className="flex flex-col h-full">
 								{/* User Info */}
 								<button
+									type="button"
 									onClick={() => handleNavClick(onNavigateToProfile)}
 									className="flex items-center gap-3 p-4 border-b border-[#E5E4E1] hover:bg-[#F5F4F1] transition-colors"
 								>
@@ -198,6 +295,7 @@ export function Header({
 										return (
 											<button
 												key={item.id}
+												type="button"
 												onClick={() => handleNavClick(item.onClick)}
 												className={`px-4 py-3 flex items-center gap-3 transition-colors ${
 													isActive
@@ -217,7 +315,8 @@ export function Header({
 								{/* Logout Button (Mobile) */}
 								<div className="border-t border-[#E5E4E1] pt-4">
 									<button
-										onClick={() => handleNavClick(onLogout)}
+										type="button"
+										onClick={handleLogoutClick}
 										className="px-4 py-3 flex items-center gap-3 text-red-600 hover:bg-red-50 transition-colors w-full"
 									>
 										<LogOut className="w-5 h-5" />

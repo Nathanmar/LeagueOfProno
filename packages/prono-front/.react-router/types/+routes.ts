@@ -14,13 +14,25 @@ type Pages = {
   "/": {
     params: {};
   };
+  "/auth": {
+    params: {};
+  };
+  "/dashboard": {
+    params: {};
+  };
+  "/friends": {
+    params: {};
+  };
+  "/shop": {
+    params: {};
+  };
+  "/profile": {
+    params: {};
+  };
   "/groups/:id": {
     params: {
       "id": string;
     };
-  };
-  "/profile": {
-    params: {};
   };
   "/*": {
     params: {
@@ -32,19 +44,35 @@ type Pages = {
 type RouteFiles = {
   "root.tsx": {
     id: "root";
-    page: "/" | "/groups/:id" | "/profile" | "/*";
+    page: "/" | "/auth" | "/dashboard" | "/friends" | "/shop" | "/profile" | "/groups/:id" | "/*";
   };
   "routes/_index.tsx": {
     id: "routes/_index";
     page: "/";
   };
-  "routes/groups.$id.tsx": {
-    id: "routes/groups.$id";
-    page: "/groups/:id";
+  "routes/auth.tsx": {
+    id: "routes/auth";
+    page: "/auth";
+  };
+  "routes/dashboard.tsx": {
+    id: "routes/dashboard";
+    page: "/dashboard";
+  };
+  "routes/friends.tsx": {
+    id: "routes/friends";
+    page: "/friends";
+  };
+  "routes/shop.tsx": {
+    id: "routes/shop";
+    page: "/shop";
   };
   "routes/profile.tsx": {
     id: "routes/profile";
     page: "/profile";
+  };
+  "routes/groups.$id.tsx": {
+    id: "routes/groups.$id";
+    page: "/groups/:id";
   };
   "routes/[...404].tsx": {
     id: "routes/[...404]";
@@ -55,7 +83,11 @@ type RouteFiles = {
 type RouteModules = {
   "root": typeof import("./app/root.tsx");
   "routes/_index": typeof import("./app/routes/_index.tsx");
-  "routes/groups.$id": typeof import("./app/routes/groups.$id.tsx");
+  "routes/auth": typeof import("./app/routes/auth.tsx");
+  "routes/dashboard": typeof import("./app/routes/dashboard.tsx");
+  "routes/friends": typeof import("./app/routes/friends.tsx");
+  "routes/shop": typeof import("./app/routes/shop.tsx");
   "routes/profile": typeof import("./app/routes/profile.tsx");
+  "routes/groups.$id": typeof import("./app/routes/groups.$id.tsx");
   "routes/[...404]": typeof import("./app/routes/[...404].tsx");
 };
