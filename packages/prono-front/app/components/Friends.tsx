@@ -4,8 +4,8 @@ import {
 	friendRequests as initialFriendRequests,
 	sentRequests as initialSentRequests,
 	friendSuggestions,
-	Friend,
 } from "../data/friendsData";
+import type { Friend } from "../data/friendsData";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";

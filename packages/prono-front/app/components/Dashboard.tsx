@@ -1,5 +1,9 @@
-import { useState, useEffect } from "react"; // <-- Assurez-vous d'importer useEffect
-import { fetchMatches /*, fetchGroups, etc. */ } from "../../api/pronoApi";
+/**
+ * Exemple de migration progressive du Dashboard
+ * Ce fichier montre comment intégrer les données API
+ */
+
+import { useState, useEffect } from "react";
 import { Button } from "./ui/button";
 import {
 	Dialog,
@@ -14,6 +18,15 @@ import { Textarea } from "./ui/textarea";
 import { MatchCard } from "./MatchCard";
 import { MatchPredictionsModal } from "./MatchPredictionsModal";
 import { Users, Plus, LogIn, Trophy, UserPlus } from "lucide-react";
+import {
+	useMatches,
+	useGroups,
+	usePredictions,
+	useCurrentUser,
+} from "../hooks/useData";
+import type { Match, Group, Prediction } from "../data/mockData";
+import * as mockData from "../data/mockData";
+import { createGroup } from "../services/dataService";
 
 interface DashboardProps {
 	onSelectGroup: (groupId: string) => void;
@@ -24,7 +37,36 @@ export function Dashboard({
 	onSelectGroup,
 	onNavigateToFriends,
 }: DashboardProps) {
-	const [groups, setGroups] = useState(initialGroups);
+	// Utiliser les hooks pour récupérer les données depuis l'API
+	const {
+		data: apiMatches,
+		loading: matchesLoading,
+		error: matchesError,
+	} = useMatches();
+	const {
+		data: apiGroups,
+		loading: groupsLoading,
+		error: groupsError,
+	} = useGroups();
+	const {
+		data: apiPredictions,
+		loading: predictionsLoading,
+		error: predictionsError,
+	} = usePredictions();
+	const {
+		data: apiCurrentUser,
+		loading: currentUserLoading,
+		error: currentUserError,
+	} = useCurrentUser();
+
+	// Fallback sur mockData si l'API n'est pas disponible
+	const matches = apiMatches ?? mockData.matches;
+	const groups = apiGroups ?? mockData.groups;
+	const predictions = apiPredictions ?? mockData.predictions;
+	const currentUser = apiCurrentUser ?? mockData.currentUser;
+	const users = mockData.users;
+
+	const [localGroups, setLocalGroups] = useState<Group[]>(groups);
 	const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 	const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
 	const [newGroupName, setNewGroupName] = useState("");
@@ -33,12 +75,22 @@ export function Dashboard({
 	const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
 	const [isMatchPredictionsModalOpen, setIsMatchPredictionsModalOpen] =
 		useState(false);
+	const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+
+	// Mettre à jour les groupes locaux quand l'API retourne des données
+	useEffect(() => {
+		if (apiGroups) {
+			setLocalGroups(apiGroups);
+		}
+	}, [apiGroups]);
 
 	// Get friends (all users except current user)
 	const friends = users.filter((u) => u.id !== currentUser.id);
 
 	// Groupes de l'utilisateur actuel
-	const userGroups = groups.filter((g) => g.members.includes(currentUser.id));
+	const userGroups = localGroups.filter((g) =>
+		g.members.includes(currentUser.id),
+	);
 
 	// Matchs en cours
 	const liveMatches = matches.filter((m) => m.status === "live");
@@ -60,31 +112,38 @@ export function Dashboard({
 		setIsMatchPredictionsModalOpen(true);
 	};
 
-	const handleCreateGroup = () => {
+	const handleCreateGroup = async () => {
 		if (!newGroupName.trim()) return;
 
-		// Générer un code d'invitation aléatoire
-		const code = Math.random().toString(36).substring(2, 10).toUpperCase();
+		setIsCreatingGroup(true);
+		try {
+			const newGroup = await createGroup({
+				name: newGroupName,
+				description: newGroupDescription,
+				members: [currentUser.id],
+				created_by: currentUser.id,
+			});
 
-		const newGroup: Group = {
-			id: `group_${Date.now()}`,
-			name: newGroupName,
-			invite_code: code,
-			description: newGroupDescription,
-			members: [currentUser.id],
-			created_by: currentUser.id,
-		};
-
-		setGroups([...groups, newGroup]);
-		setNewGroupName("");
-		setNewGroupDescription("");
-		setIsCreateModalOpen(false);
+			if (newGroup) {
+				setLocalGroups([...localGroups, newGroup]);
+				setNewGroupName("");
+				setNewGroupDescription("");
+				setIsCreateModalOpen(false);
+			} else {
+				alert("Erreur lors de la création du groupe. Veuillez réessayer.");
+			}
+		} catch (error) {
+			console.error("Erreur lors de la création du groupe:", error);
+			alert("Erreur lors de la création du groupe. Veuillez réessayer.");
+		} finally {
+			setIsCreatingGroup(false);
+		}
 	};
 
 	const handleJoinGroup = () => {
 		if (!inviteCode.trim()) return;
 
-		const group = groups.find(
+		const group = localGroups.find(
 			(g) => g.invite_code.toUpperCase() === inviteCode.toUpperCase(),
 		);
 
@@ -99,17 +158,55 @@ export function Dashboard({
 		}
 
 		// Ajouter l'utilisateur au groupe
-		const updatedGroups = groups.map((g) =>
+		const updatedGroups = localGroups.map((g) =>
 			g.id === group.id ? { ...g, members: [...g.members, currentUser.id] } : g,
 		);
 
-		setGroups(updatedGroups);
+		setLocalGroups(updatedGroups);
 		setInviteCode("");
 		setIsJoinModalOpen(false);
 	};
 
+	// Afficher un message de chargement pendant la récupération des données
+	if (
+		matchesLoading ||
+		groupsLoading ||
+		predictionsLoading ||
+		currentUserLoading
+	) {
+		return (
+			<div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-12">
+				<div className="flex items-center justify-center min-h-[500px]">
+					<div className="text-center">
+						<div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#548CB4] mx-auto mb-4" />
+						<p className="text-gray-600">Chargement des données...</p>
+					</div>
+				</div>
+			</div>
+		);
+	}
+
+	// Afficher les erreurs si l'API échoue (mais continuer avec mockData)
+	const hasErrors =
+		matchesError || groupsError || predictionsError || currentUserError;
+	if (hasErrors) {
+		console.warn("Erreurs API, utilisation des données mocké:", {
+			matchesError,
+			groupsError,
+			predictionsError,
+			currentUserError,
+		});
+	}
+
 	return (
 		<div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-12">
+			{/* Afficher une notification si les données viennent du mock */}
+			{!apiMatches && (
+				<div className="mb-4 p-4 bg-yellow-100 border border-yellow-300 rounded-lg text-yellow-800 text-sm">
+					⚠️ Les données proviennent du cache local (API indisponible)
+				</div>
+			)}
+
 			<div className="mb-8 sm:mb-12">
 				<h1 className="mb-3">Tableau de bord</h1>
 				<p className="text-gray-600">
@@ -293,7 +390,7 @@ export function Dashboard({
 					</section>
 
 					{/* Statistiques rapides */}
-					<section className="bg-gradient-to-br from-[#548CB4] to-[#4a7ca0] text-white p-6">
+					<section className="bg-linear-to-br from-[#548CB4] to-[#4a7ca0] text-white p-6">
 						<h3 className="mb-4 text-white">Vos statistiques</h3>
 						<div className="space-y-4">
 							<div>
@@ -364,10 +461,17 @@ export function Dashboard({
 						</Button>
 						<Button
 							onClick={handleCreateGroup}
-							disabled={!newGroupName.trim()}
+							disabled={!newGroupName.trim() || isCreatingGroup}
 							className="bg-[#548CB4] hover:bg-[#4a7ca0] text-white disabled:opacity-50"
 						>
-							Créer le groupe
+							{isCreatingGroup ? (
+								<>
+									<div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+									Création en cours...
+								</>
+							) : (
+								"Créer le groupe"
+							)}
 						</Button>
 					</div>
 				</DialogContent>

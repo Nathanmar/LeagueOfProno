@@ -1,7 +1,7 @@
-const BASE_URL = 'http://localhost:3001/api'; 
+
 
 async function fetchData(endpoint: string) {
-    const url = `${BASE_URL}/${endpoint}`;
+    const url = `${import.meta.env.VITE_API_BASE_URL}/${endpoint}`;
     const response = await fetch(url);
 
     if (!response.ok) {

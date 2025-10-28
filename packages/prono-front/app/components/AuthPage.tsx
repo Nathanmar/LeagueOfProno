@@ -5,6 +5,7 @@ import { Label } from "./ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Trophy, Mail, Lock, User } from "lucide-react";
 import { toast } from "sonner";
+import { registerUser, loginUser } from "../services/authService";
 
 interface AuthPageProps {
 	onLogin: (email: string, name: string) => void;
@@ -57,9 +58,14 @@ export function AuthPage({ onLogin }: AuthPageProps) {
 			return;
 		}
 
-		// Dans une vraie app, on créerait le compte avec Convex Auth
-		toast.success("Compte créé avec succès !");
-		onLogin(registerEmail, registerName);
+		registerUser(registerName, registerPassword).then((user) => {
+			if (user) {
+				toast.success("Compte créé avec succès !");
+				onLogin(registerEmail, registerName);
+			} else {
+				toast.error("Erreur lors de la création du compte");
+			}
+		});
 	};
 
 	return (

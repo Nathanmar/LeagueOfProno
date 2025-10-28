@@ -211,6 +211,7 @@ export const endpoints = {
   // Groups
   groups: "/groups",
   groupById: (id: string) => `/groups/${id}`,
+  createGroup: "/groups",
   groupLeaderboard: (id: string) => `/groups/${id}/leaderboard`,
 
   // Users

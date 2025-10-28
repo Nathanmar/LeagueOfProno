@@ -11,6 +11,16 @@ app.use('*', cors({
   allowHeaders: ['Content-Type', 'Authorization'],
 }))
 
+// Utility function to generate invite code
+function generateInviteCode(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+  let code = ''
+  for (let i = 0; i < 8; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  return code
+}
+
 // Convex HTTP actions URL (override with env)
 const CONVEX_HTTP_ACTIONS_URL = 'https://fiery-hamster-202.convex.site'
 
@@ -131,6 +141,22 @@ app.get('/api/groups', async (c) => {
   }
 })
 
+app.post('/api/groups', async (c) => {
+  const body = await c.req.json()
+  try {
+    const res = await callConvexHttpAction('createGroup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    return c.json({ success: true, data: res })
+  } catch (err) {
+    const error = err as Error
+    console.warn('createGroup action not available or failed:', error.message)
+    return c.json({ success: true, data: { id: `group_${Date.now()}`, invite_code: generateInviteCode(), ...body } })
+  }
+})
+
 app.get('/api/groups/:id/leaderboard', async (c) => {
   const id = c.req.param('id')
   try {
@@ -148,6 +174,10 @@ app.get('/api/groups/:id/leaderboard', async (c) => {
     console.error(`Error fetching leaderboard for group ${id}:`, err)
     return c.json({ success: false, error: String(err) }, 500)
   }
+})
+
+app.get('api/register', async (c) => {
+  return c.json({ message: 'Register endpoint placeholder' })
 })
 
 // Health check
