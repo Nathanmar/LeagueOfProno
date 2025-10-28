@@ -11,15 +11,19 @@ const RealtimeContext = createContext<RealtimeContextType | undefined>(undefined
 export function RealtimeProvider({ children }: { children: ReactNode }) {
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isClient) return;
+
     const initializeWebSocket = async () => {
       try {
-        // Only initialize WebSocket on client side
-        if (typeof window !== "undefined") {
-          await realtimeClient.connect();
-          setConnected(true);
-        }
+        await realtimeClient.connect();
+        setConnected(true);
       } catch (err) {
         setError(err instanceof Error ? err : new Error(String(err)));
         setConnected(false);
@@ -32,7 +36,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       realtimeClient.disconnect();
       setConnected(false);
     };
-  }, []);
+  }, [isClient]);
 
   return (
     <RealtimeContext.Provider value={{ connected, error }}>

@@ -8,9 +8,11 @@
  * @module
  */
 
+import type * as groups from "../groups.js";
 import type * as http from "../http.js";
 import type * as matches from "../matches.js";
 import type * as migrations_importData from "../migrations/importData.js";
+import type * as predictions from "../predictions.js";
 
 import type {
   ApiFromModules,
@@ -27,9 +29,11 @@ import type {
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  groups: typeof groups;
   http: typeof http;
   matches: typeof matches;
   "migrations/importData": typeof migrations_importData;
+  predictions: typeof predictions;
 }>;
 declare const fullApiWithMounts: typeof fullApi;
 

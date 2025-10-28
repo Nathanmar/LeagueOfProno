@@ -5,4 +5,5 @@ export default [
   index("routes/_index.tsx"),
   route("groups/:id", "routes/groups.$id.tsx"),
   route("profile", "routes/profile.tsx"),
+  route("*", "routes/[...404].tsx"),
 ] satisfies RouteConfig;

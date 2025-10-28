@@ -22,12 +22,17 @@ type Pages = {
   "/profile": {
     params: {};
   };
+  "/*": {
+    params: {
+      "*": string;
+    };
+  };
 };
 
 type RouteFiles = {
   "root.tsx": {
     id: "root";
-    page: "/" | "/groups/:id" | "/profile";
+    page: "/" | "/groups/:id" | "/profile" | "/*";
   };
   "routes/_index.tsx": {
     id: "routes/_index";
@@ -41,6 +46,10 @@ type RouteFiles = {
     id: "routes/profile";
     page: "/profile";
   };
+  "routes/[...404].tsx": {
+    id: "routes/[...404]";
+    page: "/*";
+  };
 };
 
 type RouteModules = {
@@ -48,4 +57,5 @@ type RouteModules = {
   "routes/_index": typeof import("./app/routes/_index.tsx");
   "routes/groups.$id": typeof import("./app/routes/groups.$id.tsx");
   "routes/profile": typeof import("./app/routes/profile.tsx");
+  "routes/[...404]": typeof import("./app/routes/[...404].tsx");
 };

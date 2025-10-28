@@ -20,3 +20,17 @@ export const getMatches = httpAction(async (ctx) => {
     headers: { "Content-Type": "application/json" },
   });
 });
+
+export const getGroups = httpAction(async (ctx) => {
+  const data = await ctx.runQuery(api.groups.listGroups);
+  return new Response(JSON.stringify(data), {
+    headers: { "Content-Type": "application/json" },
+  });
+});
+
+export const getPredictions = httpAction(async (ctx) => {
+  const data = await ctx.runQuery(api.groups.listPredictions);
+  return new Response(JSON.stringify(data), {
+    headers: { "Content-Type": "application/json" },
+  });
+});

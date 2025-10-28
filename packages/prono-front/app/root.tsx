@@ -4,7 +4,7 @@ import { Header } from "./components/Header";
 import { Toaster } from "./components/ui/sonner";
 import "./styles/globals.css";
 
-export function Layout({ children }: { children: React.ReactNode }) {
+export default function Root() {
 	return (
 		<html lang="en">
 			<head>
@@ -14,30 +14,26 @@ export function Layout({ children }: { children: React.ReactNode }) {
 				<Links />
 			</head>
 			<body>
-				<RealtimeProvider>{children}</RealtimeProvider>
-				<ScrollRestoration />
-				<Scripts />
+				<RealtimeProvider>
+					<div className="min-h-screen bg-[#FAF9F6]">
+						<Header />
+						<main>
+							<Outlet />
+						</main>
+						<Toaster
+							position="bottom-right"
+							toastOptions={{
+								style: {
+									background: "white",
+									border: "1px solid #E5E4E1",
+								},
+							}}
+						/>
+					</div>
+					<ScrollRestoration />
+					<Scripts />
+				</RealtimeProvider>
 			</body>
 		</html>
-	);
-}
-
-export default function Root() {
-	return (
-		<div className="min-h-screen bg-[#FAF9F6]">
-			<Header />
-			<main>
-				<Outlet />
-			</main>
-			<Toaster
-				position="bottom-right"
-				toastOptions={{
-					style: {
-						background: "white",
-						border: "1px solid #E5E4E1",
-					},
-				}}
-			/>
-		</div>
 	);
 }
