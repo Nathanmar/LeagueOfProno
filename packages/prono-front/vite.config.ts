@@ -9,9 +9,8 @@
   export default defineConfig({
     plugins: [reactRouter()],
     resolve: {
-      extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
       alias: {
-        '@': `${__dirname}/src`,
+        '@': `${__dirname}/app`,
       },
     },
     build: {
