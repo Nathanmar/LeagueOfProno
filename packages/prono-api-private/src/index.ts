@@ -336,13 +336,19 @@ app.post("/data/matches/:id/predict", async (c) => {
 app.get("/api/matches", async (c) => {
   try {
     const publicApiUrl = process.env.PUBLIC_API_URL || "http://localhost:3000";
+    console.log(`[MATCHES] Fetching from: ${publicApiUrl}/matches`);
+    
     const response = await fetch(`${publicApiUrl}/matches`);
 
     if (!response.ok) {
-      throw new Error("Failed to fetch matches from public API");
+      const errorText = await response.text();
+      console.error(`[MATCHES] Response not OK: ${response.status}`, errorText);
+      throw new Error(`Failed to fetch matches from public API: ${response.status} ${errorText}`);
     }
 
     const matches = await response.json();
+    console.log(`[MATCHES] Successfully fetched ${matches.length || 0} matches`);
+    
     const user = c.get("user") as User | null;
 
     return c.json({
@@ -350,9 +356,10 @@ app.get("/api/matches", async (c) => {
       userId: user?.id || "anonymous",
     });
   } catch (error) {
-    console.error("Error fetching matches:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("[MATCHES] Error fetching matches:", errorMessage);
     return c.json(
-      { error: "Failed to fetch matches" },
+      { error: "Failed to fetch matches", details: errorMessage },
       { status: 500 }
     );
   }
@@ -392,6 +399,57 @@ function generateInviteCode(): string {
 }
 
 // Routes Groupes
+app.get("/api/groups", async (c) => {
+  const user = c.get("user") as User | null;
+
+  if (!user) {
+    return c.json({ error: "Not authenticated" }, { status: 401 });
+  }
+
+  try {
+    // Récupérer tous les groupes de l'utilisateur
+    const userGroups = await prisma.userGroup.findMany({
+      where: { user_id: user.id },
+      include: {
+        Group: {
+          include: {
+            UserGroup: true,
+          },
+        },
+      },
+    });
+
+    const groups = userGroups.map((ug: any) => ({
+      id: ug.Group.id,
+      name: ug.Group.name,
+      description: ug.Group.description,
+      invite_code: ug.Group.invite_code,
+      created_by: ug.Group.created_by_id,
+      members: ug.Group.UserGroup.map((ugMember: any) => ugMember.user_id),
+      created_at: ug.Group.created_at,
+      score: ug.score,
+    }));
+
+    return c.json(
+      {
+        groups,
+        userId: user.id,
+      },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("Error fetching user groups:", error);
+    if (error instanceof Error) {
+      console.error("Error message:", error.message);
+      console.error("Error stack:", error.stack);
+    }
+    return c.json(
+      { error: "Failed to fetch groups", details: error instanceof Error ? error.message : String(error) },
+      { status: 500 }
+    );
+  }
+});
+
 app.get("/api/groups/:id", async (c) => {
   const groupId = c.req.param("id");
   const user = c.get("user") as User | null;
@@ -716,18 +774,40 @@ app.post("/api/badges/unlock", async (c) => {
 });
 
 // Routes Amis
-app.get("/data/friends", async (c) => {
+app.get("/api/friends", async (c) => {
   const user = c.get("user") as User | null;
 
+  if (!user) {
+    return c.json({ error: "Not authenticated" }, { status: 401 });
+  }
+
   try {
-    // Retourner la liste des amis de l'utilisateur
-    // Pour l'instant, liste vide - à implémenter avec Prisma
-    const friends: Array<{
-      id: string;
-      username: string;
-      avatar?: string;
-      score: number;
-    }> = [];
+    // Récupérer les amis acceptés (où l'utilisateur est soit requester soit receiver et status = accepted)
+    const friendRequests = await prisma.friendRequest.findMany({
+      where: {
+        OR: [
+          { requester_id: user.id, status: "accepted" },
+          { receiver_id: user.id, status: "accepted" },
+        ],
+      },
+      include: {
+        User_FriendRequest_receiver_idToUser: true,
+        User_FriendRequest_requester_idToUser: true,
+      },
+    });
+
+    // Mapper les résultats pour retourner les amis (pas l'utilisateur lui-même)
+    const friends = friendRequests.map((fr: any) => {
+      const friend = fr.requester_id === user.id 
+        ? fr.User_FriendRequest_receiver_idToUser 
+        : fr.User_FriendRequest_requester_idToUser;
+      return {
+        id: friend.id,
+        username: friend.username,
+        avatar: friend.avatar_url,
+        score: friend.total_points || 0,
+      };
+    });
 
     return c.json({
       friends,
@@ -741,7 +821,7 @@ app.get("/data/friends", async (c) => {
   }
 });
 
-app.post("/data/friends", async (c) => {
+app.post("/api/friends", async (c) => {
   const user = c.get("user") as User | null;
 
   if (!user) {
@@ -774,7 +854,7 @@ app.post("/data/friends", async (c) => {
   }
 });
 
-app.delete("/data/friends/:id", async (c) => {
+app.delete("/api/friends/:id", async (c) => {
   const user = c.get("user") as User | null;
   const friendId = c.req.param("id");
 
@@ -791,6 +871,53 @@ app.delete("/data/friends/:id", async (c) => {
     console.error("Error removing friend:", error);
     return c.json(
       { error: "Failed to remove friend" },
+      { status: 500 }
+    );
+  }
+});
+
+// Routes Profil
+app.get("/api/profile", async (c) => {
+  const user = c.get("user") as User | null;
+
+  if (!user) {
+    return c.json({ error: "Not authenticated" }, { status: 401 });
+  }
+
+  try {
+    // Récupérer les stats de l'utilisateur
+    const userGroups = await prisma.userGroup.count({
+      where: { user_id: user.id },
+    });
+
+    const acceptedFriends = await prisma.friendRequest.count({
+      where: {
+        OR: [
+          { requester_id: user.id, status: "accepted" },
+          { receiver_id: user.id, status: "accepted" },
+        ],
+      },
+    });
+
+    const profile = {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      avatar: user.avatar_url,
+      score: user.total_points || 0,
+      predictions_count: 0, // À implémenter si nécessaire
+      wins_count: 0, // À implémenter si nécessaire
+      groups_count: userGroups,
+      friends_count: acceptedFriends,
+    };
+
+    return c.json({
+      profile,
+    });
+  } catch (error) {
+    console.error("Error fetching profile:", error);
+    return c.json(
+      { error: "Failed to fetch profile" },
       { status: 500 }
     );
   }

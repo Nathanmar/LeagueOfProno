@@ -25,7 +25,9 @@ app.get('/matches', async (c) => {
     return c.json(matches)
   } catch (error) {
     console.error('Error fetching matches:', error)
-    return c.json({ error: 'Failed to fetch matches' }, 500)
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    console.error('Error details:', errorMessage)
+    return c.json({ error: 'Failed to fetch matches', details: errorMessage }, { status: 500 })
   }
 })
 

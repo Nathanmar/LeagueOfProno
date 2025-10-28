@@ -31,7 +31,7 @@ export interface MatchesResponse {
  * Récupère tous les matchs
  */
 export async function getMatches(): Promise<{ matches: Match[]; error: string | null }> {
-  const response = await apiClient.get<MatchesResponse>("/data/matches");
+  const response = await apiClient.get<MatchesResponse>("/api/matches");
 
   if (response.error || response.status !== 200) {
     return {
@@ -69,7 +69,7 @@ export async function submitPrediction(
     winner?: string;
   }
 ): Promise<{ error: string | null }> {
-  const response = await apiClient.post(`/data/matches/${matchId}/predict`, prediction);
+  const response = await apiClient.post(`/api/matches/${matchId}/predict`, prediction);
 
   if (response.error || (response.status !== 200 && response.status !== 201)) {
     return {

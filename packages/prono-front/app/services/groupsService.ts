@@ -19,6 +19,25 @@ export interface GroupsResponse {
 }
 
 /**
+ * Récupère les groupes de l'utilisateur
+ */
+export async function getGroups(): Promise<{ groups: Group[]; error: string | null }> {
+  const response = await apiClient.get<GroupsResponse>("/api/groups");
+
+  if (response.error || response.status !== 200) {
+    return {
+      groups: [],
+      error: response.error || "Erreur lors du chargement des groupes",
+    };
+  }
+
+  return {
+    groups: response.data?.groups || [],
+    error: null,
+  };
+}
+
+/**
  * Crée un nouveau groupe
  */
 export async function createGroup(data: {

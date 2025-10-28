@@ -7,6 +7,7 @@ export interface User {
   id: string;
   username: string;
   email: string;
+  total_points: number;
 }
 
 export interface AuthResponse {

@@ -11,6 +11,8 @@ export interface UserProfile {
   score: number;
   predictions_count: number;
   wins_count: number;
+  groups_count?: number;
+  friends_count?: number;
 }
 
 export interface ProfileResponse {
@@ -21,7 +23,7 @@ export interface ProfileResponse {
  * Récupère le profil de l'utilisateur actuel
  */
 export async function getProfile(): Promise<{ profile: UserProfile | null; error: string | null }> {
-  const response = await apiClient.get<ProfileResponse>("/data/profile");
+  const response = await apiClient.get<ProfileResponse>("/api/profile");
 
   if (response.error || response.status !== 200) {
     return {
@@ -40,7 +42,7 @@ export async function getProfile(): Promise<{ profile: UserProfile | null; error
  * Récupère le profil d'un utilisateur par son ID
  */
 export async function getUserProfile(userId: string): Promise<{ profile: UserProfile | null; error: string | null }> {
-  const response = await apiClient.get<ProfileResponse>(`/data/profile/${userId}`);
+  const response = await apiClient.get<ProfileResponse>(`/api/profile/${userId}`);
 
   if (response.error || response.status !== 200) {
     return {
@@ -59,7 +61,7 @@ export async function getUserProfile(userId: string): Promise<{ profile: UserPro
  * Met à jour le profil
  */
 export async function updateProfile(updates: Partial<UserProfile>): Promise<{ profile: UserProfile | null; error: string | null }> {
-  const response = await apiClient.put<ProfileResponse>("/data/profile", updates);
+  const response = await apiClient.put<ProfileResponse>("/api/profile", updates);
 
   if (response.error || response.status !== 200) {
     return {

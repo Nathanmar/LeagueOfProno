@@ -20,17 +20,10 @@ import { MatchPredictionsModal } from "./MatchPredictionsModal";
 import { Users, Plus, LogIn, Trophy, UserPlus } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useRealtimeMatches } from "../hooks/useRealtimeMatches";
-import { getMatches } from "../services/matchesService";
-import { createGroup, joinGroup } from "../services/groupsService";
-
-interface Match {
-	id: string;
-	team1: string;
-	team2: string;
-	score1?: number;
-	score2?: number;
-	scheduled_at: string;
-}
+import { getMatches, type Match } from "../services/matchesService";
+import { createGroup, joinGroup, getGroups } from "../services/groupsService";
+import { getFriends } from "../services/friendsService";
+import { getProfile } from "../services/profileService";
 
 interface Group {
 	id: string;
@@ -60,6 +53,14 @@ export function Dashboard({
 	const { matches, loading: matchesLoading } = useRealtimeMatches();
 
 	const [localGroups, setLocalGroups] = useState<Group[]>([]);
+	const [userFriends, setUserFriends] = useState<
+		Array<{ id: string; username: string; score: number }>
+	>([]);
+	const [userStats, setUserStats] = useState<{
+		score: number;
+		groupsCount: number;
+		friendsCount: number;
+	}>({ score: 0, groupsCount: 0, friendsCount: 0 });
 	const [predictions, setPredictions] = useState<Prediction[]>([]);
 	const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 	const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
@@ -78,8 +79,34 @@ export function Dashboard({
 		const loadData = async () => {
 			try {
 				setLoading(true);
-				// Les matchs sont gérés par useRealtimeMatches
-				// Vous pouvez ajouter d'autres appels ici si nécessaire
+
+				// Charger les groupes de l'utilisateur
+				const { groups, error: groupsError } = await getGroups();
+				if (!groupsError) {
+					setLocalGroups(groups);
+				} else {
+					console.error("Erreur lors du chargement des groupes:", groupsError);
+				}
+
+				// Charger les amis
+				const { friends, error: friendsError } = await getFriends();
+				if (!friendsError) {
+					setUserFriends(friends);
+				} else {
+					console.error("Erreur lors du chargement des amis:", friendsError);
+				}
+
+				// Charger le profil et les stats
+				const { profile, error: profileError } = await getProfile();
+				if (!profileError && profile) {
+					setUserStats({
+						score: profile.score || 0,
+						groupsCount: profile.groups_count || 0,
+						friendsCount: profile.friends_count || 0,
+					});
+				} else {
+					console.error("Erreur lors du chargement du profil:", profileError);
+				}
 			} catch (err) {
 				setError("Erreur lors du chargement des données");
 				console.error(err);
@@ -97,16 +124,14 @@ export function Dashboard({
 		email: "",
 	};
 
-	// Get friends (mock - would come from friendsService)
-	const friends: { id: string; username: string }[] = [];
+	// User groups (tous les groupes du l'API sont déjà filtrés pour cet utilisateur)
+	const userGroups = localGroups;
 
-	// User groups
-	const userGroups = localGroups.filter((g: Group) =>
-		g.members.includes(currentUser.id),
-	);
+	// User friends (déjà filtrés depuis l'API)
+	const friends = userFriends;
 
-	// Live matches
-	const liveMatches = matches;
+	// Live matches - Filtrer uniquement les matchs avec status "live"
+	const liveMatches = matches.filter((match: Match) => match.status === "live");
 
 	// Get user prediction for a match
 	const getUserPrediction = (matchId: string): Prediction | undefined => {
@@ -161,6 +186,12 @@ export function Dashboard({
 			if (joinError) {
 				setError(joinError);
 				return;
+			}
+
+			// Recharger les groupes après avoir rejoint
+			const { groups, error: groupsError } = await getGroups();
+			if (!groupsError) {
+				setLocalGroups(groups);
 			}
 
 			setInviteCode("");
@@ -351,7 +382,9 @@ export function Dashboard({
 												<div style={{ fontWeight: 600 }} className="text-sm">
 													{friend.username}
 												</div>
-												<div className="text-xs text-gray-600">--- pts</div>
+												<div className="text-xs text-gray-600">
+													{friend.score} pts
+												</div>
 											</div>
 										</div>
 										<Trophy className="w-4 h-4 text-[#C4A15B]" />
@@ -378,19 +411,19 @@ export function Dashboard({
 							<div>
 								<div className="text-sm opacity-90">Points totaux</div>
 								<div className="text-3xl" style={{ fontWeight: 700 }}>
-									0
+									{userStats.score}
 								</div>
 							</div>
 							<div className="border-t border-white/20 pt-4">
 								<div className="text-sm opacity-90">Groupes actifs</div>
 								<div className="text-2xl" style={{ fontWeight: 700 }}>
-									{userGroups.length}
+									{userStats.groupsCount}
 								</div>
 							</div>
 							<div className="border-t border-white/20 pt-4">
 								<div className="text-sm opacity-90">Amis</div>
 								<div className="text-2xl" style={{ fontWeight: 700 }}>
-									{friends.length}
+									{userStats.friendsCount}
 								</div>
 							</div>
 						</div>

@@ -223,7 +223,7 @@ export function Shop({ onBack, isAuthenticated, onLogin }: ShopProps) {
 								<div className="flex items-center gap-2">
 									<Trophy className="w-6 h-6" />
 									<span className="text-3xl" style={{ fontWeight: 700 }}>
-										{user?.id ? "100" : "0"}
+										{user?.id ? user.total_points : "0"}
 									</span>
 								</div>
 							</div>
