@@ -1,13 +1,11 @@
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import type { Group, Match, Prediction } from "../data/mockData";
 import {
 	groups as initialGroups,
 	currentUser,
 	matches,
 	predictions,
-	type Group,
-	type Match,
-	type Prediction,
+	users,
 } from "../data/mockData";
 import { Button } from "./ui/button";
 import {
@@ -24,8 +22,15 @@ import { MatchCard } from "./MatchCard";
 import { MatchPredictionsModal } from "./MatchPredictionsModal";
 import { Users, Plus, LogIn, Trophy, UserPlus } from "lucide-react";
 
-export function Dashboard() {
-	const navigate = useNavigate();
+interface DashboardProps {
+	onSelectGroup: (groupId: string) => void;
+	onNavigateToFriends: () => void;
+}
+
+export function Dashboard({
+	onSelectGroup,
+	onNavigateToFriends,
+}: DashboardProps) {
 	const [groups, setGroups] = useState(initialGroups);
 	const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 	const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
@@ -35,6 +40,9 @@ export function Dashboard() {
 	const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
 	const [isMatchPredictionsModalOpen, setIsMatchPredictionsModalOpen] =
 		useState(false);
+
+	// Get friends (all users except current user)
+	const friends = users.filter((u) => u.id !== currentUser.id);
 
 	// Groupes de l'utilisateur actuel
 	const userGroups = groups.filter((g) => g.members.includes(currentUser.id));
@@ -189,7 +197,7 @@ export function Dashboard() {
 										key={group.id}
 										type="button"
 										className="bg-white border border-[#E5E4E1] p-6 hover:border-[#548CB4] transition-colors cursor-pointer text-left"
-										onClick={() => navigate(`/groups/${group.id}`)}
+										onClick={() => onSelectGroup(group.id)}
 									>
 										<div className="mb-4">
 											<h4 className="mb-1">{group.name}</h4>
@@ -221,6 +229,76 @@ export function Dashboard() {
 
 				{/* Sidebar */}
 				<div className="lg:col-span-1 space-y-6">
+					{/* Mes Amis */}
+					<section className="bg-white border border-[#E5E4E1] p-6">
+						<div className="flex items-center justify-between mb-6">
+							<h3>Mes Amis</h3>
+							<Button
+								onClick={onNavigateToFriends}
+								size="sm"
+								variant="ghost"
+								className="hover:bg-[#F5F4F1]"
+							>
+								Voir tout
+							</Button>
+						</div>
+
+						{friends.length === 0 ? (
+							<div className="text-center py-8">
+								<Users className="w-8 h-8 mx-auto mb-3 text-gray-400" />
+								<p className="text-sm text-gray-600 mb-4">
+									Aucun ami pour le moment
+								</p>
+								<Button
+									onClick={onNavigateToFriends}
+									size="sm"
+									variant="outline"
+									className="border-[#548CB4] text-[#548CB4] hover:bg-[#548CB4] hover:text-white"
+								>
+									<UserPlus className="w-4 h-4 mr-2" />
+									Ajouter des amis
+								</Button>
+							</div>
+						) : (
+							<div className="space-y-3">
+								{friends.slice(0, 5).map((friend) => (
+									<div
+										key={friend.id}
+										className="flex items-center justify-between p-3 bg-[#F5F4F1] hover:bg-[#E5E4E1] transition-colors"
+									>
+										<div className="flex items-center gap-3">
+											<div
+												className="w-10 h-10 bg-[#548CB4] bg-opacity-10 flex items-center justify-center text-[#548CB4]"
+												style={{ fontWeight: 600 }}
+											>
+												{friend.name.charAt(0).toUpperCase()}
+											</div>
+											<div>
+												<div style={{ fontWeight: 600 }} className="text-sm">
+													{friend.name}
+												</div>
+												<div className="text-xs text-gray-600">
+													{friend.total_points} pts
+												</div>
+											</div>
+										</div>
+										<Trophy className="w-4 h-4 text-[#C4A15B]" />
+									</div>
+								))}
+								{friends.length > 5 && (
+									<Button
+										onClick={onNavigateToFriends}
+										variant="outline"
+										size="sm"
+										className="w-full border-[#E5E4E1] hover:bg-[#F5F4F1]"
+									>
+										Voir tous mes amis ({friends.length})
+									</Button>
+								)}
+							</div>
+						)}
+					</section>
+
 					{/* Statistiques rapides */}
 					<section className="bg-gradient-to-br from-[#548CB4] to-[#4a7ca0] text-white p-6">
 						<h3 className="mb-4 text-white">Vos statistiques</h3>
@@ -235,6 +313,12 @@ export function Dashboard() {
 								<div className="text-sm opacity-90">Groupes actifs</div>
 								<div className="text-2xl" style={{ fontWeight: 700 }}>
 									{userGroups.length}
+								</div>
+							</div>
+							<div className="border-t border-white/20 pt-4">
+								<div className="text-sm opacity-90">Amis</div>
+								<div className="text-2xl" style={{ fontWeight: 700 }}>
+									{friends.length}
 								</div>
 							</div>
 						</div>

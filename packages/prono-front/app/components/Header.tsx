@@ -1,8 +1,16 @@
 import { useState } from "react";
-import { useNavigate, useLocation } from "react-router";
 import { currentUser } from "../data/mockData";
 import { Avatar, AvatarFallback } from "./ui/avatar";
-import { Trophy, User, Home, Menu } from "lucide-react";
+import {
+	Trophy,
+	Users,
+	ShoppingBag,
+	Home,
+	Menu,
+	X,
+	User,
+	LogOut,
+} from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "./ui/sheet";
 import {
 	DropdownMenu,
@@ -12,21 +20,38 @@ import {
 	DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 
-export function Header() {
-	const navigate = useNavigate();
-	const location = useLocation();
-	const [isOpen, setIsOpen] = useState(false);
+interface HeaderProps {
+	onNavigateToProfile: () => void;
+	onNavigateToFriends: () => void;
+	onNavigateToDashboard: () => void;
+	onNavigateToShop: () => void;
+	onLogout: () => void;
+	currentView: string;
+}
 
-	const isHome = location.pathname === "/";
-	const isProfile = location.pathname === "/profile";
+export function Header({
+	onNavigateToProfile,
+	onNavigateToFriends,
+	onNavigateToDashboard,
+	onNavigateToShop,
+	onLogout,
+	currentView,
+}: HeaderProps) {
+	const [isOpen, setIsOpen] = useState(false);
 
 	const navItems = [
 		{
-			id: "home",
+			id: "dashboard",
 			label: "Accueil",
 			icon: Home,
-			onClick: () => navigate("/"),
-			path: "/",
+			onClick: onNavigateToDashboard,
+		},
+		{ id: "friends", label: "Amis", icon: Users, onClick: onNavigateToFriends },
+		{
+			id: "shop",
+			label: "Boutique",
+			icon: ShoppingBag,
+			onClick: onNavigateToShop,
 		},
 	];
 
@@ -41,8 +66,7 @@ export function Header() {
 				<div className="flex items-center justify-between h-16">
 					{/* Logo - Left */}
 					<button
-						type="button"
-						onClick={() => navigate("/")}
+						onClick={onNavigateToDashboard}
 						className="flex items-center gap-2 hover:opacity-80 transition-opacity"
 					>
 						<Trophy className="w-7 h-7 sm:w-8 sm:h-8 text-[#548CB4]" />
@@ -59,13 +83,13 @@ export function Header() {
 						{navItems.map((item) => {
 							const Icon = item.icon;
 							const isActive =
-								location.pathname === item.path ||
-								location.pathname.startsWith("/groups");
+								currentView === item.id ||
+								(item.id === "dashboard" &&
+									(currentView === "dashboard" || currentView === "group"));
 
 							return (
 								<button
 									key={item.id}
-									type="button"
 									onClick={item.onClick}
 									className={`px-4 py-2 flex items-center gap-2 transition-all ${
 										isActive
@@ -85,10 +109,7 @@ export function Header() {
 					{/* User Info - Right (Desktop) */}
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
-							<button
-								type="button"
-								className="hidden md:flex items-center gap-3 hover:bg-[#F5F4F1] px-3 py-2 transition-colors rounded"
-							>
+							<button className="hidden md:flex items-center gap-3 hover:bg-[#F5F4F1] px-3 py-2 transition-colors rounded">
 								<div className="text-right">
 									<div style={{ fontWeight: 600 }} className="text-sm">
 										{currentUser.name}
@@ -110,11 +131,19 @@ export function Header() {
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end" className="w-48 bg-white">
 							<DropdownMenuItem
-								onClick={() => navigate("/profile")}
+								onClick={onNavigateToProfile}
 								className="cursor-pointer flex items-center gap-2"
 							>
 								<User className="w-4 h-4" />
 								Mon profil
+							</DropdownMenuItem>
+							<DropdownMenuSeparator />
+							<DropdownMenuItem
+								onClick={onLogout}
+								className="cursor-pointer flex items-center gap-2 text-red-600 focus:text-red-600"
+							>
+								<LogOut className="w-4 h-4" />
+								Se déconnecter
 							</DropdownMenuItem>
 						</DropdownMenuContent>
 					</DropdownMenu>
@@ -122,10 +151,7 @@ export function Header() {
 					{/* Mobile Menu Button */}
 					<Sheet open={isOpen} onOpenChange={setIsOpen}>
 						<SheetTrigger asChild className="md:hidden">
-							<button
-								type="button"
-								className="p-2 hover:bg-[#F5F4F1] transition-colors rounded"
-							>
+							<button className="p-2 hover:bg-[#F5F4F1] transition-colors rounded">
 								<Menu className="w-6 h-6 text-gray-600" />
 							</button>
 						</SheetTrigger>
@@ -137,8 +163,7 @@ export function Header() {
 							<div className="flex flex-col h-full">
 								{/* User Info */}
 								<button
-									type="button"
-									onClick={() => handleNavClick(() => navigate("/profile"))}
+									onClick={() => handleNavClick(onNavigateToProfile)}
 									className="flex items-center gap-3 p-4 border-b border-[#E5E4E1] hover:bg-[#F5F4F1] transition-colors"
 								>
 									<Avatar className="w-12 h-12 border-2 border-[#548CB4]">
@@ -165,13 +190,14 @@ export function Header() {
 									{navItems.map((item) => {
 										const Icon = item.icon;
 										const isActive =
-											location.pathname === item.path ||
-											location.pathname.startsWith("/groups");
+											currentView === item.id ||
+											(item.id === "dashboard" &&
+												(currentView === "dashboard" ||
+													currentView === "group"));
 
 										return (
 											<button
 												key={item.id}
-												type="button"
 												onClick={() => handleNavClick(item.onClick)}
 												className={`px-4 py-3 flex items-center gap-3 transition-colors ${
 													isActive
@@ -187,6 +213,17 @@ export function Header() {
 										);
 									})}
 								</nav>
+
+								{/* Logout Button (Mobile) */}
+								<div className="border-t border-[#E5E4E1] pt-4">
+									<button
+										onClick={() => handleNavClick(onLogout)}
+										className="px-4 py-3 flex items-center gap-3 text-red-600 hover:bg-red-50 transition-colors w-full"
+									>
+										<LogOut className="w-5 h-5" />
+										<span style={{ fontWeight: 400 }}>Se déconnecter</span>
+									</button>
+								</div>
 							</div>
 						</SheetContent>
 					</Sheet>
