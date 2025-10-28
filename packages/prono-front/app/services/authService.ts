@@ -1,39 +1,111 @@
-import { apiClient, endpoints } from "../services/api";
-import type { User, Group, Match, Prediction } from "../data/mockData";
-import {
-  adaptConvexMatch,
-  adaptConvexPrediction,
-  adaptConvexGroup,
-  adaptConvexUser,
-} from "../data/dataAdapter";
+/**
+ * Service d'authentification
+ */
+import { apiClient } from "./api";
+
+export interface User {
+  id: string;
+  username: string;
+  email: string;
+}
+
+export interface AuthResponse {
+  message: string;
+  user: User;
+}
+
+export interface CurrentUserResponse {
+  user: User;
+  session: {
+    id: string;
+    expiresAt: string;
+  };
+}
 
 /**
- * Récupère tous les matchs depuis l'API
+ * Enregistre un nouvel utilisateur
  */
-async function registerUser(username: string, password: string): Promise<User | null> {
-  try {
-    const data = await apiClient.post<Record<string, unknown>>(endpoints.register, {
-      username,
-      password,
-    });
-    return adaptConvexUser(data);
-  } catch (error) {
-    console.error("Error registering user:", error);
-    return null;
+export async function registerUser(
+  username: string,
+  email: string,
+  password: string
+): Promise<{ user: User | null; error: string | null }> {
+  const response = await apiClient.post<AuthResponse>("/auth/register", {
+    username,
+    email,
+    password,
+  });
+
+  if (response.error || response.status !== 201) {
+    return {
+      user: null,
+      error: response.error || (response.data as { error?: string })?.error || "Erreur lors de l'inscription",
+    };
   }
+
+  return {
+    user: response.data?.user || null,
+    error: null,
+  };
 }
 
-async function loginUser(username: string, password: string): Promise<User | null> {
-    try {
-        const data = await apiClient.post<Record<string, unknown>>(endpoints.login, {
-        username,
-        password,
-        });
-        return adaptConvexUser(data);
-    } catch (error) {
-        console.error("Error logging in user:", error);
-        return null;
-    }
+/**
+ * Se connecte avec ses identifiants
+ */
+export async function loginUser(
+  email: string,
+  password: string
+): Promise<{ user: User | null; error: string | null }> {
+  const response = await apiClient.post<AuthResponse>("/auth/login", {
+    email,
+    password,
+  });
+
+  if (response.error || response.status !== 200) {
+    return {
+      user: null,
+      error: response.error || (response.data as { error?: string })?.error || "Erreur lors de la connexion",
+    };
+  }
+
+  return {
+    user: response.data?.user || null,
+    error: null,
+  };
 }
 
-export { registerUser, loginUser };
+/**
+ * Récupère l'utilisateur actuel
+ */
+export async function getCurrentUser(): Promise<{ user: User | null; error: string | null }> {
+  const response = await apiClient.get<CurrentUserResponse>("/auth/me");
+
+  if (response.error || response.status !== 200) {
+    return {
+      user: null,
+      error: response.error || "Non authentifié",
+    };
+  }
+
+  return {
+    user: response.data?.user || null,
+    error: null,
+  };
+}
+
+/**
+ * Se déconnecte
+ */
+export async function logoutUser(): Promise<{ error: string | null }> {
+  const response = await apiClient.post("/auth/logout");
+
+  if (response.error || response.status !== 200) {
+    return {
+      error: response.error || "Erreur lors de la déconnexion",
+    };
+  }
+
+  return {
+    error: null,
+  };
+}

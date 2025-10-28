@@ -1,5 +1,3 @@
-import type { Match, Prediction } from "../data/mockData";
-import { users } from "../data/mockData";
 import {
 	Dialog,
 	DialogContent,
@@ -8,6 +6,33 @@ import {
 	DialogDescription,
 } from "./ui/dialog";
 import { Trophy, Target } from "lucide-react";
+
+interface Match {
+	id: string;
+	team1: string;
+	team2: string;
+	team_a?: string;
+	team_b?: string;
+	score1?: number;
+	score2?: number;
+	score_a?: number;
+	score_b?: number;
+	scheduled_at: string;
+	status?: string;
+}
+
+interface Prediction {
+	id: string;
+	match_id: string;
+	user_id: string;
+	prediction: string;
+	predicted_winner?: string;
+	predicted_score_a?: number;
+	predicted_score_b?: number;
+	is_correct?: boolean;
+	is_exact_score?: boolean;
+	points_earned?: number;
+}
 
 interface MatchPredictionsModalProps {
 	match: Match | null;
@@ -107,7 +132,10 @@ export function MatchPredictionsModal({
 								</div>
 							) : (
 								predictions.map((prediction) => {
-									const user = users.find((u) => u.id === prediction.user_id);
+									const user = {
+										id: prediction.user_id,
+										username: "Utilisateur",
+									};
 									if (!user) return null;
 
 									const predictedTeam =
@@ -137,10 +165,12 @@ export function MatchPredictionsModal({
 														} text-lg`}
 														style={{ fontWeight: 600 }}
 													>
-														{user.name.charAt(0).toUpperCase()}
+														{user.username.charAt(0).toUpperCase()}
 													</div>
 													<div>
-														<div style={{ fontWeight: 600 }}>{user.name}</div>
+														<div style={{ fontWeight: 600 }}>
+															{user.username}
+														</div>
 														<div className="text-sm text-gray-600">
 															Prédit :{" "}
 															<span style={{ fontWeight: 600 }}>

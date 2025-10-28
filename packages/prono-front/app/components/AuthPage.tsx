@@ -3,26 +3,32 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
-import { Trophy, Mail, Lock, User } from "lucide-react";
+import { Trophy, Mail, Lock, User, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { registerUser, loginUser } from "../services/authService";
+import {
+	registerUser,
+	loginUser,
+	type User as UserType,
+} from "../services/authService";
 
 interface AuthPageProps {
-	onLogin: (email: string, name: string) => void;
+	onLogin: (user: UserType) => void;
 }
 
 export function AuthPage({ onLogin }: AuthPageProps) {
 	// Login state
 	const [loginEmail, setLoginEmail] = useState("");
 	const [loginPassword, setLoginPassword] = useState("");
+	const [loginLoading, setLoginLoading] = useState(false);
 
 	// Register state
 	const [registerName, setRegisterName] = useState("");
 	const [registerEmail, setRegisterEmail] = useState("");
 	const [registerPassword, setRegisterPassword] = useState("");
 	const [registerConfirmPassword, setRegisterConfirmPassword] = useState("");
+	const [registerLoading, setRegisterLoading] = useState(false);
 
-	const handleLogin = (e: React.FormEvent) => {
+	const handleLogin = async (e: React.FormEvent) => {
 		e.preventDefault();
 
 		if (!loginEmail || !loginPassword) {
@@ -30,12 +36,24 @@ export function AuthPage({ onLogin }: AuthPageProps) {
 			return;
 		}
 
-		// Dans une vraie app, on vérifierait avec Convex Auth
-		toast.success("Connexion réussie !");
-		onLogin(loginEmail, "PronoMaster");
+		setLoginLoading(true);
+		const { user, error } = await loginUser(loginEmail, loginPassword);
+
+		if (error) {
+			toast.error(error);
+			setLoginLoading(false);
+			return;
+		}
+
+		if (user) {
+			toast.success("Connexion réussie !");
+			onLogin(user);
+		}
+
+		setLoginLoading(false);
 	};
 
-	const handleRegister = (e: React.FormEvent) => {
+	const handleRegister = async (e: React.FormEvent) => {
 		e.preventDefault();
 
 		if (
@@ -58,14 +76,25 @@ export function AuthPage({ onLogin }: AuthPageProps) {
 			return;
 		}
 
-		registerUser(registerName, registerPassword).then((user) => {
-			if (user) {
-				toast.success("Compte créé avec succès !");
-				onLogin(registerEmail, registerName);
-			} else {
-				toast.error("Erreur lors de la création du compte");
-			}
-		});
+		setRegisterLoading(true);
+		const { user, error } = await registerUser(
+			registerName,
+			registerEmail,
+			registerPassword,
+		);
+
+		if (error) {
+			toast.error(error);
+			setRegisterLoading(false);
+			return;
+		}
+
+		if (user) {
+			toast.success("Compte créé avec succès !");
+			onLogin(user);
+		}
+
+		setRegisterLoading(false);
 	};
 
 	return (
@@ -100,7 +129,6 @@ export function AuthPage({ onLogin }: AuthPageProps) {
 							</TabsTrigger>
 						</TabsList>
 
-						{/* Login Form */}
 						<TabsContent value="login">
 							<form onSubmit={handleLogin} className="space-y-4">
 								<div>
@@ -114,6 +142,7 @@ export function AuthPage({ onLogin }: AuthPageProps) {
 											onChange={(e) => setLoginEmail(e.target.value)}
 											placeholder="votre@email.com"
 											className="pl-10 border-[#E5E4E1] focus:border-[#548CB4]"
+											disabled={loginLoading}
 										/>
 									</div>
 								</div>
@@ -129,6 +158,7 @@ export function AuthPage({ onLogin }: AuthPageProps) {
 											onChange={(e) => setLoginPassword(e.target.value)}
 											placeholder="••••••••"
 											className="pl-10 border-[#E5E4E1] focus:border-[#548CB4]"
+											disabled={loginLoading}
 										/>
 									</div>
 								</div>
@@ -136,14 +166,23 @@ export function AuthPage({ onLogin }: AuthPageProps) {
 								<Button
 									type="submit"
 									className="w-full bg-[#548CB4] hover:bg-[#4a7ca0] text-white mt-6"
+									disabled={loginLoading}
 								>
-									Se connecter
+									{loginLoading ? (
+										<>
+											<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+											Connexion en cours...
+										</>
+									) : (
+										"Se connecter"
+									)}
 								</Button>
 
 								<div className="text-center mt-4">
 									<button
 										type="button"
 										className="text-sm text-[#548CB4] hover:underline"
+										disabled={loginLoading}
 									>
 										Mot de passe oublié ?
 									</button>
@@ -165,6 +204,7 @@ export function AuthPage({ onLogin }: AuthPageProps) {
 											onChange={(e) => setRegisterName(e.target.value)}
 											placeholder="Votre pseudo"
 											className="pl-10 border-[#E5E4E1] focus:border-[#548CB4]"
+											disabled={registerLoading}
 										/>
 									</div>
 								</div>
@@ -180,6 +220,7 @@ export function AuthPage({ onLogin }: AuthPageProps) {
 											onChange={(e) => setRegisterEmail(e.target.value)}
 											placeholder="votre@email.com"
 											className="pl-10 border-[#E5E4E1] focus:border-[#548CB4]"
+											disabled={registerLoading}
 										/>
 									</div>
 								</div>
@@ -195,6 +236,7 @@ export function AuthPage({ onLogin }: AuthPageProps) {
 											onChange={(e) => setRegisterPassword(e.target.value)}
 											placeholder="••••••••"
 											className="pl-10 border-[#E5E4E1] focus:border-[#548CB4]"
+											disabled={registerLoading}
 										/>
 									</div>
 									<p className="text-xs text-gray-500 mt-1">
@@ -217,6 +259,7 @@ export function AuthPage({ onLogin }: AuthPageProps) {
 											}
 											placeholder="••••••••"
 											className="pl-10 border-[#E5E4E1] focus:border-[#548CB4]"
+											disabled={registerLoading}
 										/>
 									</div>
 								</div>
@@ -224,8 +267,16 @@ export function AuthPage({ onLogin }: AuthPageProps) {
 								<Button
 									type="submit"
 									className="w-full bg-[#548CB4] hover:bg-[#4a7ca0] text-white mt-6"
+									disabled={registerLoading}
 								>
-									Créer mon compte
+									{registerLoading ? (
+										<>
+											<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+											Création en cours...
+										</>
+									) : (
+										"Créer mon compte"
+									)}
 								</Button>
 
 								<div className="text-center mt-4">

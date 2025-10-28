@@ -51,8 +51,8 @@ export function LandingPage({
 
 				{/* Decorative gradient */}
 				<div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full opacity-20 pointer-events-none">
-					<div className="absolute top-20 left-1/4 w-96 h-96 bg-[#548CB4] rounded-full blur-3xl"></div>
-					<div className="absolute top-40 right-1/4 w-96 h-96 bg-[#C4A15B] rounded-full blur-3xl"></div>
+					<div className="absolute top-20 left-1/4 w-96 h-96 bg-[#548CB4] rounded-full blur-3xl" />
+					<div className="absolute top-40 right-1/4 w-96 h-96 bg-[#C4A15B] rounded-full blur-3xl" />
 				</div>
 			</div>
 
@@ -205,7 +205,7 @@ export function LandingPage({
 
 			{/* CTA Section */}
 			<div className="max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-24">
-				<div className="bg-gradient-to-br from-[#548CB4] to-[#4a7ca0] text-white p-16 text-center">
+				<div className="bg-linear-to-br from-[#548CB4] to-[#4a7ca0] text-white p-16 text-center">
 					<h2 className="mb-6 text-white">
 						Prêt à devenir le meilleur pronostiqueur ?
 					</h2>

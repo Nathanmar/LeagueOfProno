@@ -1,6 +1,7 @@
 import type { MetaFunction } from "react-router";
 import { Dashboard } from "../components/Dashboard";
 import { useNavigate } from "react-router";
+import { ProtectedRoute } from "../components/ProtectedRoute";
 
 export const meta: MetaFunction = () => [
 	{ title: "Tableau de bord - League of Prono" },
@@ -19,9 +20,11 @@ export default function DashboardRoute() {
 	};
 
 	return (
-		<Dashboard
-			onSelectGroup={handleSelectGroup}
-			onNavigateToFriends={handleNavigateToFriends}
-		/>
+		<ProtectedRoute requiredAuth={true}>
+			<Dashboard
+				onSelectGroup={handleSelectGroup}
+				onNavigateToFriends={handleNavigateToFriends}
+			/>
+		</ProtectedRoute>
 	);
 }

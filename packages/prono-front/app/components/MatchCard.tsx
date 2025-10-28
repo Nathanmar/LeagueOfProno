@@ -1,6 +1,35 @@
-import type { Match, Prediction } from "../data/mockData";
 import { Calendar, Trophy, Users } from "lucide-react";
 import { Button } from "./ui/button";
+
+interface Match {
+	id: string;
+	team1: string;
+	team2: string;
+	team_a?: string;
+	team_b?: string;
+	score1?: number;
+	score2?: number;
+	score_a?: number;
+	score_b?: number;
+	scheduled_at: string;
+	match_date?: string;
+	status?: string;
+	tournament?: string;
+	winner?: string;
+}
+
+interface Prediction {
+	id: string;
+	match_id: string;
+	user_id: string;
+	prediction: string;
+	predicted_winner?: string;
+	predicted_score_a?: number;
+	predicted_score_b?: number;
+	is_correct?: boolean;
+	is_exact_score?: boolean;
+	points_earned?: number;
+}
 
 interface MatchCardProps {
 	match: Match;
@@ -19,7 +48,7 @@ export function MatchCard({
 }: MatchCardProps) {
 	const isUpcoming = match.status === "upcoming";
 	const isLive = match.status === "live";
-	const matchDate = new Date(match.match_date);
+	const matchDate = new Date(match.match_date || match.scheduled_at || "");
 
 	return (
 		<div

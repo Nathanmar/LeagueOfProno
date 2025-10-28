@@ -1,11 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useAuth } from "../contexts/AuthContext";
 import {
-	friends as initialFriends,
-	friendRequests as initialFriendRequests,
-	sentRequests as initialSentRequests,
-	friendSuggestions,
-} from "../data/friendsData";
-import type { Friend } from "../data/friendsData";
+	getFriends,
+	addFriend,
+	removeFriend,
+} from "../services/friendsService";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
@@ -26,29 +25,73 @@ interface FriendsProps {
 	onBack: () => void;
 }
 
+interface Friend {
+	id: string;
+	email: string;
+	username?: string;
+	name: string;
+	status: "accepted" | "pending" | "sent";
+	total_points?: number;
+	common_groups?: number;
+}
+
 export function Friends({ onBack }: FriendsProps) {
-	const [friends, setFriends] = useState(initialFriends);
-	const [friendRequests, setFriendRequests] = useState(initialFriendRequests);
-	const [sentRequests, setSentRequests] = useState(initialSentRequests);
+	const { user } = useAuth();
+	const [friends, setFriends] = useState<Friend[]>([]);
+	const [friendRequests, setFriendRequests] = useState<Friend[]>([]);
+	const [sentRequests, setSentRequests] = useState<Friend[]>([]);
+	const [friendSuggestions, setFriendSuggestions] = useState<Friend[]>([]);
+	const [loading, setLoading] = useState(true);
 	const [searchEmail, setSearchEmail] = useState("");
 	const [searchQuery, setSearchQuery] = useState("");
 
+	useEffect(() => {
+		const loadFriends = async () => {
+			if (!user) return;
+			setLoading(true);
+			try {
+				const { friends: loadedFriends, error } = await getFriends();
+				if (!error && loadedFriends) {
+					// Transform friendsService response to Friend format
+					const transformedFriends = loadedFriends.map((f) => ({
+						id: f.id,
+						email: f.username || "",
+						username: f.username,
+						name: f.username || "Unknown",
+						status: "accepted" as const,
+						total_points: f.score || 0,
+						common_groups: 0,
+					}));
+					setFriends(transformedFriends);
+				}
+			} catch (error) {
+				toast.error("Erreur lors du chargement des amis");
+			} finally {
+				setLoading(false);
+			}
+		};
+
+		loadFriends();
+	}, [user]);
+
 	const handleAcceptRequest = (friendId: string) => {
-		const request = friendRequests.find((r) => r.id === friendId);
+		const request = friendRequests.find((r: Friend) => r.id === friendId);
 		if (request) {
 			// Déplacer vers les amis
 			setFriends([...friends, { ...request, status: "accepted" }]);
-			setFriendRequests(friendRequests.filter((r) => r.id !== friendId));
+			setFriendRequests(
+				friendRequests.filter((r: Friend) => r.id !== friendId),
+			);
 			toast.success("Demande d'ami acceptée !");
 		}
 	};
 
 	const handleRejectRequest = (friendId: string) => {
-		setFriendRequests(friendRequests.filter((r) => r.id !== friendId));
+		setFriendRequests(friendRequests.filter((r: Friend) => r.id !== friendId));
 		toast.success("Demande d'ami refusée");
 	};
 
-	const handleSendRequest = (email: string) => {
+	const handleSendRequest = async (email: string) => {
 		if (!email) {
 			toast.error("Veuillez entrer un email");
 			return;

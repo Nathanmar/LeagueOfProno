@@ -18,15 +18,34 @@ import { Textarea } from "./ui/textarea";
 import { MatchCard } from "./MatchCard";
 import { MatchPredictionsModal } from "./MatchPredictionsModal";
 import { Users, Plus, LogIn, Trophy, UserPlus } from "lucide-react";
-import {
-	useMatches,
-	useGroups,
-	usePredictions,
-	useCurrentUser,
-} from "../hooks/useData";
-import type { Match, Group, Prediction } from "../data/mockData";
-import * as mockData from "../data/mockData";
-import { createGroup } from "../services/dataService";
+import { useAuth } from "../contexts/AuthContext";
+import { useRealtimeMatches } from "../hooks/useRealtimeMatches";
+import { getMatches } from "../services/matchesService";
+import { createGroup, joinGroup } from "../services/groupsService";
+
+interface Match {
+	id: string;
+	team1: string;
+	team2: string;
+	score1?: number;
+	score2?: number;
+	scheduled_at: string;
+}
+
+interface Group {
+	id: string;
+	name: string;
+	description?: string;
+	members: string[];
+}
+
+interface Prediction {
+	id: string;
+	match_id: string;
+	user_id: string;
+	prediction: string;
+	points_earned?: number;
+}
 
 interface DashboardProps {
 	onSelectGroup: (groupId: string) => void;
@@ -37,36 +56,11 @@ export function Dashboard({
 	onSelectGroup,
 	onNavigateToFriends,
 }: DashboardProps) {
-	// Utiliser les hooks pour récupérer les données depuis l'API
-	const {
-		data: apiMatches,
-		loading: matchesLoading,
-		error: matchesError,
-	} = useMatches();
-	const {
-		data: apiGroups,
-		loading: groupsLoading,
-		error: groupsError,
-	} = useGroups();
-	const {
-		data: apiPredictions,
-		loading: predictionsLoading,
-		error: predictionsError,
-	} = usePredictions();
-	const {
-		data: apiCurrentUser,
-		loading: currentUserLoading,
-		error: currentUserError,
-	} = useCurrentUser();
+	const { user } = useAuth();
+	const { matches, loading: matchesLoading } = useRealtimeMatches();
 
-	// Fallback sur mockData si l'API n'est pas disponible
-	const matches = apiMatches ?? mockData.matches;
-	const groups = apiGroups ?? mockData.groups;
-	const predictions = apiPredictions ?? mockData.predictions;
-	const currentUser = apiCurrentUser ?? mockData.currentUser;
-	const users = mockData.users;
-
-	const [localGroups, setLocalGroups] = useState<Group[]>(groups);
+	const [localGroups, setLocalGroups] = useState<Group[]>([]);
+	const [predictions, setPredictions] = useState<Prediction[]>([]);
 	const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 	const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
 	const [newGroupName, setNewGroupName] = useState("");
@@ -76,35 +70,54 @@ export function Dashboard({
 	const [isMatchPredictionsModalOpen, setIsMatchPredictionsModalOpen] =
 		useState(false);
 	const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+	const [loading, setLoading] = useState(true);
+	const [error, setError] = useState<string | null>(null);
 
-	// Mettre à jour les groupes locaux quand l'API retourne des données
+	// Charger les données au montage
 	useEffect(() => {
-		if (apiGroups) {
-			setLocalGroups(apiGroups);
-		}
-	}, [apiGroups]);
+		const loadData = async () => {
+			try {
+				setLoading(true);
+				// Les matchs sont gérés par useRealtimeMatches
+				// Vous pouvez ajouter d'autres appels ici si nécessaire
+			} catch (err) {
+				setError("Erreur lors du chargement des données");
+				console.error(err);
+			} finally {
+				setLoading(false);
+			}
+		};
 
-	// Get friends (all users except current user)
-	const friends = users.filter((u) => u.id !== currentUser.id);
+		loadData();
+	}, []);
 
-	// Groupes de l'utilisateur actuel
-	const userGroups = localGroups.filter((g) =>
+	const currentUser = user || {
+		id: "",
+		username: "Utilisateur",
+		email: "",
+	};
+
+	// Get friends (mock - would come from friendsService)
+	const friends: { id: string; username: string }[] = [];
+
+	// User groups
+	const userGroups = localGroups.filter((g: Group) =>
 		g.members.includes(currentUser.id),
 	);
 
-	// Matchs en cours
-	const liveMatches = matches.filter((m) => m.status === "live");
+	// Live matches
+	const liveMatches = matches;
 
-	// Obtenir la prédiction de l'utilisateur pour un match
+	// Get user prediction for a match
 	const getUserPrediction = (matchId: string): Prediction | undefined => {
 		return predictions.find(
-			(p) => p.user_id === currentUser.id && p.match_id === matchId,
+			(p: Prediction) => p.user_id === currentUser.id && p.match_id === matchId,
 		);
 	};
 
 	// Obtenir tous les pronostics pour un match (tous groupes confondus)
 	const getMatchPredictions = (matchId: string): Prediction[] => {
-		return predictions.filter((p) => p.match_id === matchId);
+		return predictions.filter((p: Prediction) => p.match_id === matchId);
 	};
 
 	const handleOpenMatchPredictionsModal = (match: Match) => {
@@ -117,63 +130,49 @@ export function Dashboard({
 
 		setIsCreatingGroup(true);
 		try {
-			const newGroup = await createGroup({
+			const { group, error: createError } = await createGroup({
 				name: newGroupName,
 				description: newGroupDescription,
-				members: [currentUser.id],
-				created_by: currentUser.id,
 			});
 
-			if (newGroup) {
-				setLocalGroups([...localGroups, newGroup]);
-				setNewGroupName("");
-				setNewGroupDescription("");
-				setIsCreateModalOpen(false);
-			} else {
-				alert("Erreur lors de la création du groupe. Veuillez réessayer.");
+			if (createError || !group) {
+				setError(createError || "Erreur lors de la création du groupe");
+				return;
 			}
-		} catch (error) {
-			console.error("Erreur lors de la création du groupe:", error);
-			alert("Erreur lors de la création du groupe. Veuillez réessayer.");
+
+			setLocalGroups([...localGroups, group]);
+			setNewGroupName("");
+			setNewGroupDescription("");
+			setIsCreateModalOpen(false);
+		} catch (err) {
+			console.error("Erreur lors de la création du groupe:", err);
+			setError("Erreur lors de la création du groupe");
 		} finally {
 			setIsCreatingGroup(false);
 		}
 	};
 
-	const handleJoinGroup = () => {
+	const handleJoinGroup = async () => {
 		if (!inviteCode.trim()) return;
 
-		const group = localGroups.find(
-			(g) => g.invite_code.toUpperCase() === inviteCode.toUpperCase(),
-		);
+		try {
+			const { error: joinError } = await joinGroup(inviteCode, inviteCode);
 
-		if (!group) {
-			alert("Groupe introuvable. Vérifiez le code d'invitation.");
-			return;
+			if (joinError) {
+				setError(joinError);
+				return;
+			}
+
+			setInviteCode("");
+			setIsJoinModalOpen(false);
+		} catch (err) {
+			console.error("Erreur lors de la connexion au groupe:", err);
+			setError("Erreur lors de la connexion au groupe");
 		}
-
-		if (group.members.includes(currentUser.id)) {
-			alert("Vous êtes déjà membre de ce groupe.");
-			return;
-		}
-
-		// Ajouter l'utilisateur au groupe
-		const updatedGroups = localGroups.map((g) =>
-			g.id === group.id ? { ...g, members: [...g.members, currentUser.id] } : g,
-		);
-
-		setLocalGroups(updatedGroups);
-		setInviteCode("");
-		setIsJoinModalOpen(false);
 	};
 
 	// Afficher un message de chargement pendant la récupération des données
-	if (
-		matchesLoading ||
-		groupsLoading ||
-		predictionsLoading ||
-		currentUserLoading
-	) {
+	if (matchesLoading) {
 		return (
 			<div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-12">
 				<div className="flex items-center justify-center min-h-[500px]">
@@ -186,31 +185,17 @@ export function Dashboard({
 		);
 	}
 
-	// Afficher les erreurs si l'API échoue (mais continuer avec mockData)
-	const hasErrors =
-		matchesError || groupsError || predictionsError || currentUserError;
-	if (hasErrors) {
-		console.warn("Erreurs API, utilisation des données mocké:", {
-			matchesError,
-			groupsError,
-			predictionsError,
-			currentUserError,
-		});
+	// Afficher les erreurs si l'API échoue
+	if (error) {
+		console.warn("Erreur API:", error);
 	}
 
 	return (
 		<div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-12">
-			{/* Afficher une notification si les données viennent du mock */}
-			{!apiMatches && (
-				<div className="mb-4 p-4 bg-yellow-100 border border-yellow-300 rounded-lg text-yellow-800 text-sm">
-					⚠️ Les données proviennent du cache local (API indisponible)
-				</div>
-			)}
-
 			<div className="mb-8 sm:mb-12">
 				<h1 className="mb-3">Tableau de bord</h1>
 				<p className="text-gray-600">
-					Bienvenue, {currentUser.name} ! Voici un aperçu de votre activité.
+					Bienvenue, {currentUser.username} ! Voici un aperçu de votre activité.
 				</p>
 			</div>
 
@@ -307,7 +292,7 @@ export function Dashboard({
 												</span>
 											</div>
 											<span className="text-xs font-mono bg-[#F5F4F1] px-2 py-1">
-												{group.invite_code}
+												{group.id}
 											</span>
 										</div>
 									</button>
@@ -315,8 +300,7 @@ export function Dashboard({
 							</div>
 						)}
 					</section>
-				</div>
-
+				</div>{" "}
 				{/* Sidebar */}
 				<div className="lg:col-span-1 space-y-6">
 					{/* Mes Amis */}
@@ -361,15 +345,13 @@ export function Dashboard({
 												className="w-10 h-10 bg-[#548CB4] bg-opacity-10 flex items-center justify-center text-[#548CB4]"
 												style={{ fontWeight: 600 }}
 											>
-												{friend.name.charAt(0).toUpperCase()}
+												{friend.username.charAt(0).toUpperCase()}
 											</div>
 											<div>
 												<div style={{ fontWeight: 600 }} className="text-sm">
-													{friend.name}
+													{friend.username}
 												</div>
-												<div className="text-xs text-gray-600">
-													{friend.total_points} pts
-												</div>
+												<div className="text-xs text-gray-600">--- pts</div>
 											</div>
 										</div>
 										<Trophy className="w-4 h-4 text-[#C4A15B]" />
@@ -396,7 +378,7 @@ export function Dashboard({
 							<div>
 								<div className="text-sm opacity-90">Points totaux</div>
 								<div className="text-3xl" style={{ fontWeight: 700 }}>
-									{currentUser.total_points}
+									0
 								</div>
 							</div>
 							<div className="border-t border-white/20 pt-4">

@@ -1,13 +1,4 @@
-import { useState } from "react";
-import {
-	groups,
-	matches,
-	predictions as initialPredictions,
-	currentUser,
-	getGroupLeaderboard,
-	Prediction,
-	Match,
-} from "../data/mockData";
+import { useState, useEffect } from "react";
 import { MatchCard } from "./MatchCard";
 import { Leaderboard } from "./Leaderboard";
 import { PredictionModal } from "./PredictionModal";
@@ -16,6 +7,42 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Button } from "./ui/button";
 import { ArrowLeft, Share2 } from "lucide-react";
 import { toast } from "sonner";
+import { getGroup } from "../services/groupsService";
+
+interface Match {
+	id: string;
+	team1: string;
+	team2: string;
+	team_a?: string;
+	team_b?: string;
+	score1?: number;
+	score2?: number;
+	score_a?: number;
+	score_b?: number;
+	scheduled_at: string;
+	status?: string;
+}
+
+interface Group {
+	id: string;
+	name: string;
+	description?: string;
+	members: string[];
+	invite_code?: string;
+}
+
+interface Prediction {
+	id: string;
+	match_id: string;
+	user_id: string;
+	prediction: string;
+	predicted_winner?: string;
+	predicted_score_a?: number;
+	predicted_score_b?: number;
+	is_correct?: boolean;
+	is_exact_score?: boolean;
+	points_earned?: number;
+}
 
 interface GroupViewProps {
 	groupId: string;
@@ -23,14 +50,51 @@ interface GroupViewProps {
 }
 
 export function GroupView({ groupId, onBack }: GroupViewProps) {
-	const group = groups.find((g) => g.id === groupId);
-	const [predictions, setPredictions] = useState(initialPredictions);
+	const [group, setGroup] = useState<Group | null>(null);
+	const [loading, setLoading] = useState(true);
+	const [predictions, setPredictions] = useState<Prediction[]>([]);
 	const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
 	const [isPredictionModalOpen, setIsPredictionModalOpen] = useState(false);
 	const [isMatchPredictionsModalOpen, setIsMatchPredictionsModalOpen] =
 		useState(false);
 	const [selectedMatchForPredictions, setSelectedMatchForPredictions] =
 		useState<Match | null>(null);
+
+	// Charger les données du groupe
+	useEffect(() => {
+		const loadGroup = async () => {
+			try {
+				setLoading(true);
+				const { group: groupData, error } = await getGroup(groupId);
+				if (error || !groupData) {
+					console.error("Erreur lors du chargement du groupe:", error);
+					setGroup(null);
+				} else {
+					setGroup(groupData);
+				}
+			} catch (err) {
+				console.error("Erreur lors du chargement du groupe:", err);
+				setGroup(null);
+			} finally {
+				setLoading(false);
+			}
+		};
+
+		loadGroup();
+	}, [groupId]);
+
+	if (loading) {
+		return (
+			<div className="max-w-7xl mx-auto px-6 py-12">
+				<div className="flex items-center justify-center min-h-[500px]">
+					<div className="text-center">
+						<div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#548CB4] mx-auto mb-4" />
+						<p className="text-gray-600">Chargement du groupe...</p>
+					</div>
+				</div>
+			</div>
+		);
+	}
 
 	if (!group) {
 		return (
@@ -41,29 +105,26 @@ export function GroupView({ groupId, onBack }: GroupViewProps) {
 	}
 
 	// Filtrer les matchs par statut
-	const liveMatches = matches.filter((m) => m.status === "live");
-	const upcomingMatches = matches.filter((m) => m.status === "upcoming");
-	const completedMatches = matches.filter((m) => m.status === "completed");
+	const liveMatches: Match[] = [];
+	const upcomingMatches: Match[] = [];
+	const completedMatches: Match[] = [];
 
 	// Obtenir les prédictions de l'utilisateur pour ce groupe
 	const getUserPrediction = (matchId: string): Prediction | undefined => {
-		return predictions.find(
-			(p) =>
-				p.user_id === currentUser.id &&
-				p.match_id === matchId &&
-				p.group_id === groupId,
-		);
+		return predictions.find((p) => p.match_id === matchId);
 	};
 
 	// Obtenir les prédictions du groupe pour un match
 	const getMatchPredictions = (matchId: string): Prediction[] => {
-		return predictions.filter(
-			(p) => p.match_id === matchId && p.group_id === groupId,
-		);
+		return predictions.filter((p) => p.match_id === matchId);
 	};
 
 	// Classement du groupe
-	const leaderboard = getGroupLeaderboard(groupId);
+	const leaderboard: Array<{
+		userId: string;
+		userName: string;
+		score: number;
+	}> = [];
 
 	const handleOpenPredictionModal = (match: Match) => {
 		setSelectedMatch(match);
@@ -84,9 +145,9 @@ export function GroupView({ groupId, onBack }: GroupViewProps) {
 	}) => {
 		const newPrediction: Prediction = {
 			id: `pred_${Date.now()}`,
-			user_id: currentUser.id,
+			user_id: groupId,
 			match_id: predictionData.matchId,
-			group_id: predictionData.groupId,
+			prediction: "",
 			predicted_winner: predictionData.predictedWinner,
 			predicted_score_a: predictionData.predictedScoreA,
 			predicted_score_b: predictionData.predictedScoreB,
@@ -100,8 +161,10 @@ export function GroupView({ groupId, onBack }: GroupViewProps) {
 	};
 
 	const handleShareInviteCode = () => {
-		navigator.clipboard.writeText(group.invite_code);
-		toast.success("Code d'invitation copié !");
+		if (group?.invite_code) {
+			navigator.clipboard.writeText(group.invite_code);
+			toast.success("Code d'invitation copié !");
+		}
 	};
 
 	return (
@@ -131,11 +194,10 @@ export function GroupView({ groupId, onBack }: GroupViewProps) {
 						className="border-[#C4A15B] text-[#C4A15B] hover:bg-[#C4A15B] hover:text-white w-full sm:w-auto"
 					>
 						<Share2 className="w-4 h-4 mr-2" />
-						Code : {group.invite_code}
+						Code : {group.invite_code || "N/A"}
 					</Button>
 				</div>
-			</div>
-
+			</div>{" "}
 			{/* Layout principal : Contenu + Sidebar */}
 			<div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
 				{/* Contenu principal : Matchs */}
@@ -228,11 +290,10 @@ export function GroupView({ groupId, onBack }: GroupViewProps) {
 				{/* Sidebar : Classement */}
 				<div className="lg:col-span-1">
 					<div className="lg:sticky lg:top-6">
-						<Leaderboard entries={leaderboard} currentUserId={currentUser.id} />
+						<Leaderboard entries={leaderboard} currentUserId={groupId} />
 					</div>
 				</div>
-			</div>
-
+			</div>{" "}
 			{/* Modale de pronostic */}
 			<PredictionModal
 				match={selectedMatch}
@@ -241,7 +302,6 @@ export function GroupView({ groupId, onBack }: GroupViewProps) {
 				onClose={() => setIsPredictionModalOpen(false)}
 				onSubmit={handleSubmitPrediction}
 			/>
-
 			{/* Modale des pronostics du groupe */}
 			<MatchPredictionsModal
 				match={selectedMatchForPredictions}

@@ -1,0 +1,134 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model FriendRequest {
+    id                                    String        @id
+    requester_id                          String
+    receiver_id                           String
+    status                                friend_status @default(pending)
+    created_at                            DateTime      @default(now()) @db.Timestamptz(6)
+    updated_at                            DateTime      @default(now()) @db.Timestamptz(6)
+    User_FriendRequest_receiver_idToUser  User          @relation("FriendRequest_receiver_idToUser", fields: [receiver_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+    User_FriendRequest_requester_idToUser User          @relation("FriendRequest_requester_idToUser", fields: [requester_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+    @@unique([requester_id, receiver_id], map: "unique_friendship_pair")
+}
+
+model Group {
+    id            String       @id
+    name          String
+    invite_code   String       @unique
+    description   String?
+    created_by_id String
+    created_at    DateTime     @default(now()) @db.Timestamptz(6)
+    updated_at    DateTime     @default(now()) @db.Timestamptz(6)
+    is_sample     Boolean      @default(false)
+    User          User         @relation(fields: [created_by_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+    Prediction    Prediction[]
+    UserGroup     UserGroup[]
+}
+
+model Match {
+    id                         String       @id
+    team_a_id                  String
+    team_b_id                  String
+    match_time                 DateTime     @db.Timestamptz(6)
+    status                     match_status @default(upcoming)
+    result_score_a             Int?
+    result_score_b             Int?
+    Team_Match_team_a_idToTeam Team         @relation("Match_team_a_idToTeam", fields: [team_a_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+    Team_Match_team_b_idToTeam Team         @relation("Match_team_b_idToTeam", fields: [team_b_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+    Prediction                 Prediction[]
+}
+
+model Prediction {
+    id                String   @id
+    user_id           String
+    match_id          String
+    group_id          String
+    predicted_winner  String?
+    predicted_score_a Int?
+    predicted_score_b Int?
+    points_earned     Int      @default(0)
+    is_correct        Boolean?
+    is_exact_score    Boolean?
+    created_at        DateTime @default(now()) @db.Timestamptz(6)
+    updated_at        DateTime @default(now()) @db.Timestamptz(6)
+    Group             Group    @relation(fields: [group_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+    Match             Match    @relation(fields: [match_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+    User              User     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+    @@unique([user_id, match_id, group_id], map: "unique_prediction")
+}
+
+model Session {
+    id        String   @id
+    userId    String
+    expiresAt DateTime @db.Timestamptz(6)
+    user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model Team {
+    id                          String  @id
+    name                        String
+    logo_url                    String?
+    Match_Match_team_a_idToTeam Match[] @relation("Match_team_a_idToTeam")
+    Match_Match_team_b_idToTeam Match[] @relation("Match_team_b_idToTeam")
+}
+
+model User {
+    id                                             String          @id
+    email                                          String          @unique
+    username                                       String          @unique
+    hashed_password                                String
+    avatar_url                                     String?
+    total_points                                   Int             @default(0)
+    created_at                                     DateTime        @default(now()) @db.Timestamptz(6)
+    password                                       String?
+    badges                                         String          @default("[]")
+    FriendRequest_FriendRequest_receiver_idToUser  FriendRequest[] @relation("FriendRequest_receiver_idToUser")
+    FriendRequest_FriendRequest_requester_idToUser FriendRequest[] @relation("FriendRequest_requester_idToUser")
+    Group                                          Group[]
+    Prediction                                     Prediction[]
+    Session                                        Session[]
+    UserGroup                                      UserGroup[]
+}
+
+model UserGroup {
+    user_id   String
+    group_id  String
+    score     Int      @default(0)
+    joined_at DateTime @default(now()) @db.Timestamptz(6)
+    Group     Group    @relation(fields: [group_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+    User      User     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+    @@id([user_id, group_id])
+}
+
+enum friend_request_status {
+    pending
+    accepted
+    rejected
+    blocked
+}
+
+enum friend_status {
+    pending
+    accepted
+    rejected
+    blocked
+}
+
+enum match_status {
+    upcoming
+    live
+    finished
+    cancelled
+}

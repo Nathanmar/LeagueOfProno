@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { currentUser } from "../data/mockData";
+import { useAuth } from "../contexts/AuthContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -139,6 +139,7 @@ const merchItems: MerchItem[] = [
 ];
 
 export function Shop({ onBack, isAuthenticated, onLogin }: ShopProps) {
+	const { user } = useAuth();
 	const [selectedGiftCard, setSelectedGiftCard] = useState<string | null>(null);
 	const [selectedValue, setSelectedValue] = useState<number | null>(null);
 
@@ -150,7 +151,7 @@ export function Shop({ onBack, isAuthenticated, onLogin }: ShopProps) {
 
 		const totalCost = value * card.costPerPoint;
 
-		if (currentUser.total_points >= totalCost) {
+		if (user?.id) {
 			toast.success(
 				`Carte cadeau ${card.name} de ${value}€ échangée avec succès !`,
 			);
@@ -183,6 +184,7 @@ export function Shop({ onBack, isAuthenticated, onLogin }: ShopProps) {
 						<div className="flex items-center justify-between h-16">
 							{/* Logo */}
 							<button
+								type="button"
 								onClick={onBack}
 								className="flex items-center gap-2 hover:opacity-80 transition-opacity"
 							>
@@ -216,12 +218,12 @@ export function Shop({ onBack, isAuthenticated, onLogin }: ShopProps) {
 						</div>
 
 						{isAuthenticated ? (
-							<div className="bg-gradient-to-br from-[#548CB4] to-[#4a7ca0] text-white px-6 py-4 self-start">
+							<div className="bg-linear-to-br from-[#548CB4] to-[#4a7ca0] text-white px-6 py-4 self-start">
 								<div className="text-sm opacity-90">Vos points</div>
 								<div className="flex items-center gap-2">
 									<Trophy className="w-6 h-6" />
 									<span className="text-3xl" style={{ fontWeight: 700 }}>
-										{currentUser.total_points}
+										{user?.id ? "100" : "0"}
 									</span>
 								</div>
 							</div>
@@ -317,11 +319,11 @@ export function Shop({ onBack, isAuthenticated, onLogin }: ShopProps) {
 										<div className="grid grid-cols-2 gap-2">
 											{card.values.map((value) => {
 												const cost = value * card.costPerPoint;
-												const canAfford =
-													isAuthenticated && currentUser.total_points >= cost;
+												const canAfford = isAuthenticated && user?.id;
 
 												return (
 													<button
+														type="button"
 														key={value}
 														onClick={() => {
 															if (!isAuthenticated) {

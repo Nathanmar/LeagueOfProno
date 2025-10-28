@@ -1,0 +1,32 @@
+version: "3.8"
+
+services:
+  prono-api-private:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - DATABASE_URL=postgresql://admin:CG0z30T@uW3!9O@u2ZHL@88.223.95.27:32774/matches
+      - PUBLIC_API_URL=http://prono-api-public:3000
+      - PRIVATE_API_PORT=3001
+      - NODE_ENV=production
+    depends_on:
+      - prono-api-public
+    networks:
+      - prono-network
+
+  prono-api-public:
+    image: prono-api-public:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://admin:CG0z30T@uW3!9O@u2ZHL@88.223.95.27:32774/matches
+      - PORT=3000
+    networks:
+      - prono-network
+
+networks:
+  prono-network:
+    driver: bridge

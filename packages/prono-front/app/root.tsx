@@ -31,6 +31,9 @@ export default function Root() {
 
 	const currentView = getCurrentView();
 
+	const handleNavigateToHome = () => {
+		navigate("/");
+	};
 	const handleNavigateToProfile = () => {
 		navigate("/profile");
 	};
@@ -64,6 +67,7 @@ export default function Root() {
 					<RealtimeProvider>
 						<div className="min-h-screen bg-[#FAF9F6]">
 							<Header
+								onNavigateToHome={handleNavigateToHome}
 								onNavigateToProfile={handleNavigateToProfile}
 								onNavigateToFriends={handleNavigateToFriends}
 								onNavigateToDashboard={handleNavigateToDashboard}

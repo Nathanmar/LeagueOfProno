@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { currentUser } from "../data/mockData";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { useAuth } from "../contexts/AuthContext";
 import {
@@ -22,6 +21,7 @@ import {
 import { useNavigate } from "react-router";
 
 interface HeaderProps {
+	onNavigateToHome: () => void;
 	onNavigateToProfile: () => void;
 	onNavigateToFriends: () => void;
 	onNavigateToDashboard: () => void;
@@ -31,6 +31,7 @@ interface HeaderProps {
 }
 
 export function Header({
+	onNavigateToHome,
 	onNavigateToProfile,
 	onNavigateToFriends,
 	onNavigateToDashboard,
@@ -39,7 +40,7 @@ export function Header({
 	currentView,
 }: HeaderProps) {
 	const [isOpen, setIsOpen] = useState(false);
-	const { isAuthenticated, logout } = useAuth();
+	const { isAuthenticated, user, logout } = useAuth();
 	const navigate = useNavigate();
 
 	const navItems = [
@@ -78,7 +79,7 @@ export function Header({
 						{/* Logo - Left */}
 						<button
 							type="button"
-							onClick={onNavigateToDashboard}
+							onClick={onNavigateToHome}
 							className="flex items-center gap-2 hover:opacity-80 transition-opacity"
 						>
 							<Trophy className="w-7 h-7 sm:w-8 sm:h-8 text-[#548CB4]" />
@@ -205,19 +206,19 @@ export function Header({
 							>
 								<div className="text-right">
 									<div style={{ fontWeight: 600 }} className="text-sm">
-										{currentUser.name}
+										{user?.username || "Utilisateur"}
 									</div>
 									<div className="text-xs text-gray-600">
 										<Trophy className="w-3 h-3 inline mr-1" />
-										{currentUser.total_points} points
+										{user?.id ? "Actif" : "---"} points
 									</div>
 								</div>
 								<Avatar className="w-9 h-9 border-2 border-[#548CB4]">
 									<AvatarFallback className="bg-[#548CB4] text-white">
-										{currentUser.name
-											.split(" ")
-											.map((n) => n[0])
-											.join("")}
+										{user?.username
+											?.split(" ")
+											.map((n: string) => n[0])
+											.join("") || "U"}
 									</AvatarFallback>
 								</Avatar>
 							</button>
@@ -265,19 +266,19 @@ export function Header({
 								>
 									<Avatar className="w-12 h-12 border-2 border-[#548CB4]">
 										<AvatarFallback className="bg-[#548CB4] text-white">
-											{currentUser.name
-												.split(" ")
-												.map((n) => n[0])
-												.join("")}
+											{user?.username
+												?.split(" ")
+												.map((n: string) => n[0])
+												.join("") || "U"}
 										</AvatarFallback>
 									</Avatar>
 									<div className="text-left">
 										<div style={{ fontWeight: 600 }} className="text-sm">
-											{currentUser.name}
+											{user?.username || "Utilisateur"}
 										</div>
 										<div className="text-xs text-gray-600">
 											<Trophy className="w-3 h-3 inline mr-1" />
-											{currentUser.total_points} points
+											{user?.id ? "Actif" : "---"} points
 										</div>
 									</div>
 								</button>

@@ -1,147 +1,182 @@
 /**
- * API Client pour communiquer avec prono-api
- * Gère les requêtes HTTP et la synchronisation temps réel
+ * Client HTTP générique pour communiquer avec les APIs
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
-const WS_URL = import.meta.env.VITE_WS_URL || "ws://localhost:3001/ws";
-
-// Types de réponse API
-export interface ApiResponse<T> {
-  success: boolean;
-  data?: T;
-  error?: string;
+interface RequestConfig {
+  method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
+  headers?: Record<string, string>;
+  body?: unknown;
+  credentials?: RequestCredentials;
 }
 
-// Client HTTP
-export const apiClient = {
-  async get<T>(endpoint: string): Promise<T> {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
+interface ApiResponse<T = unknown> {
+  data?: T;
+  error?: string;
+  message?: string;
+  status: number;
+}
 
-    if (!response.ok) {
-      throw new Error(`API Error: ${response.statusText}`);
+export class ApiClient {
+  private baseUrl: string;
+  private defaultHeaders: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  constructor(baseUrl: string = import.meta.env.VITE_PRIVATE_API_URL || "http://localhost:3001") {
+    this.baseUrl = baseUrl;
+  }
+
+  /**
+   * Effectue une requête HTTP
+   */
+  private async request<T = unknown>(
+    endpoint: string,
+    config: RequestConfig = {}
+  ): Promise<ApiResponse<T>> {
+    const url = new URL(endpoint, this.baseUrl).toString();
+    const {
+      method = "GET",
+      headers = {},
+      body = undefined,
+      credentials = "include",
+    } = config;
+
+    try {
+      const fetchOptions: RequestInit = {
+        method,
+        headers: {
+          ...this.defaultHeaders,
+          ...headers,
+        },
+        credentials,
+      };
+
+      if (body) {
+        fetchOptions.body = JSON.stringify(body);
+      }
+
+      const response = await fetch(url, fetchOptions);
+
+      const data = await response.json();
+
+      return {
+        data: data as T,
+        status: response.status,
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Une erreur est survenue";
+      return {
+        error: errorMessage,
+        status: 0,
+      };
     }
+  }
 
-    const data: ApiResponse<T> = await response.json();
-    if (!data.success) {
-      throw new Error(data.error || "Unknown error");
-    }
+  /**
+   * Requête GET
+   */
+  async get<T = unknown>(endpoint: string, headers?: Record<string, string>): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, { method: "GET", headers });
+  }
 
-    return data.data || ({} as T);
-  },
+  /**
+   * Requête POST
+   */
+  async post<T = unknown>(
+    endpoint: string,
+    body?: unknown,
+    headers?: Record<string, string>
+  ): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, { method: "POST", body, headers });
+  }
 
-  async post<T>(endpoint: string, body: unknown): Promise<T> {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
+  /**
+   * Requête PUT
+   */
+  async put<T = unknown>(
+    endpoint: string,
+    body?: unknown,
+    headers?: Record<string, string>
+  ): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, { method: "PUT", body, headers });
+  }
 
-    if (!response.ok) {
-      throw new Error(`API Error: ${response.statusText}`);
-    }
+  /**
+   * Requête DELETE
+   */
+  async delete<T = unknown>(endpoint: string, headers?: Record<string, string>): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, { method: "DELETE", headers });
+  }
 
-    const data: ApiResponse<T> = await response.json();
-    if (!data.success) {
-      throw new Error(data.error || "Unknown error");
-    }
+  /**
+   * Requête PATCH
+   */
+  async patch<T = unknown>(
+    endpoint: string,
+    body?: unknown,
+    headers?: Record<string, string>
+  ): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, { method: "PATCH", body, headers });
+  }
+}
 
-    return data.data || ({} as T);
-  },
+// Instance partagée
+export const apiClient = new ApiClient();
 
-  async put<T>(endpoint: string, body: unknown): Promise<T> {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (!response.ok) {
-      throw new Error(`API Error: ${response.statusText}`);
-    }
-
-    const data: ApiResponse<T> = await response.json();
-    if (!data.success) {
-      throw new Error(data.error || "Unknown error");
-    }
-
-    return data.data || ({} as T);
-  },
-
-  async delete<T>(endpoint: string): Promise<T> {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`API Error: ${response.statusText}`);
-    }
-
-    const data: ApiResponse<T> = await response.json();
-    if (!data.success) {
-      throw new Error(data.error || "Unknown error");
-    }
-
-    return data.data || ({} as T);
-  },
-};
-
-// WebSocket pour les updates temps réel
+/**
+ * Client WebSocket pour les mises à jour en temps réel
+ */
 export class RealtimeClient {
   private ws: WebSocket | null = null;
+  private url: string;
   private listeners: Map<string, Set<(data: unknown) => void>> = new Map();
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
 
-  connect() {
-    return new Promise<void>((resolve, reject) => {
+  constructor(url: string = (import.meta.env.VITE_PRIVATE_API_WS || "ws://localhost:3001").replace(/^http/, "ws")) {
+    this.url = url;
+  }
+
+  /**
+   * Se connecte au serveur WebSocket
+   */
+  async connect(): Promise<void> {
+    return new Promise((resolve, reject) => {
       try {
-        this.ws = new WebSocket(WS_URL);
+        this.ws = new WebSocket(this.url);
 
         this.ws.onopen = () => {
-          console.log("WebSocket connected");
+          console.log("✅ WebSocket connected");
           this.reconnectAttempts = 0;
           resolve();
         };
 
-        this.ws.onmessage = (event: MessageEvent) => {
+        this.ws.onmessage = (event) => {
           try {
             const message = JSON.parse(event.data);
             const { type, data } = message;
 
             if (type && this.listeners.has(type)) {
-              const callbacks = this.listeners.get(type);
-              if (callbacks) {
-                for (const listener of callbacks) {
-                  listener(data);
+              const typeListeners = this.listeners.get(type);
+              if (typeListeners) {
+                for (const callback of typeListeners) {
+                  callback(data);
                 }
               }
             }
-          } catch (error) {
-            console.error("Failed to parse WebSocket message:", error);
+          } catch (err) {
+            console.error("Erreur en parsant le message WebSocket:", err);
           }
         };
 
         this.ws.onerror = (error) => {
-          console.error("WebSocket error:", error);
+          console.error("❌ WebSocket error:", error);
           reject(error);
         };
 
         this.ws.onclose = () => {
-          console.log("WebSocket disconnected");
+          console.log("🔌 WebSocket disconnected");
           this.attemptReconnect();
         };
       } catch (error) {
@@ -150,75 +185,69 @@ export class RealtimeClient {
     });
   }
 
-  private attemptReconnect() {
+  /**
+   * Tente de se reconnecter automatiquement
+   */
+  private attemptReconnect(): void {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      this.reconnectAttempts += 1;
+      this.reconnectAttempts++;
       const delay = this.reconnectDelay * (2 ** (this.reconnectAttempts - 1));
-      console.log(
-        `Attempting to reconnect in ${delay}ms (attempt ${this.reconnectAttempts})`
-      );
-      setTimeout(() => this.connect().catch(console.error), delay);
+      console.log(`🔄 Tentative de reconnexion dans ${delay}ms...`);
+
+      setTimeout(() => {
+        this.connect().catch((err) => {
+          console.error("Erreur lors de la reconnexion:", err);
+        });
+      }, delay);
+    } else {
+      console.error("❌ Max reconnection attempts reached");
     }
   }
 
-  subscribe(eventType: string, callback: (data: unknown) => void) {
-    if (!this.listeners.has(eventType)) {
-      this.listeners.set(eventType, new Set());
-    }
-    const callbacks = this.listeners.get(eventType);
-    if (callbacks) {
-      callbacks.add(callback);
+  /**
+   * S'abonne aux mises à jour d'un type
+   */
+  subscribe(type: string, callback: (data: unknown) => void): () => void {
+    if (!this.listeners.has(type)) {
+      this.listeners.set(type, new Set());
     }
 
-    // Return unsubscribe function
+    this.listeners.get(type)?.add(callback);
+
+    // Retourner une fonction de désinscription
     return () => {
-      this.listeners.get(eventType)?.delete(callback);
+      this.listeners.get(type)?.delete(callback);
     };
   }
 
-  send(type: string, data: unknown) {
+  /**
+   * Envoie un message au serveur
+   */
+  send(type: string, data?: unknown): void {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ type, data }));
     } else {
-      console.warn("WebSocket not connected");
+      console.warn("❌ WebSocket not connected");
     }
   }
 
-  disconnect() {
+  /**
+   * Se déconnecte
+   */
+  disconnect(): void {
     if (this.ws) {
       this.ws.close();
       this.ws = null;
     }
   }
+
+  /**
+   * Vérifie si connecté
+   */
+  isConnected(): boolean {
+    return this.ws?.readyState === WebSocket.OPEN;
+  }
 }
 
-// Instance singleton
+// Instance partagée
 export const realtimeClient = new RealtimeClient();
-
-// API Endpoints
-export const endpoints = {
-  // Matches
-  matches: "/matches",
-  matchById: (id: string) => `/matches/${id}`,
-  updateMatch: (id: string) => `/matches/${id}`,
-
-  // Predictions
-  predictions: "/predictions",
-  predictionById: (id: string) => `/predictions/${id}`,
-  createPrediction: "/predictions",
-  updatePrediction: (id: string) => `/predictions/${id}`,
-
-  // Groups
-  groups: "/groups",
-  groupById: (id: string) => `/groups/${id}`,
-  createGroup: "/groups",
-  groupLeaderboard: (id: string) => `/groups/${id}/leaderboard`,
-
-  // Users
-  users: "/users",
-  userById: (id: string) => `/users/${id}`,
-  currentUser: "/users/me",
-
-  // Scores
-  updateScore: (matchId: string) => `/matches/${matchId}/score`,
-};
