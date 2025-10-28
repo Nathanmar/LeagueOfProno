@@ -26,7 +26,7 @@ export interface Match {
   team_b: string;
   match_date: number;
   tournament: string;
-  status: "upcoming" | "completed";
+  status: "upcoming" | "live" | "completed";
   winner?: "team_a" | "team_b";
   score_a?: number;
   score_b?: number;

@@ -1,15 +1,12 @@
-import { useNavigate } from "react-router";
 import {
 	currentUser,
 	groups,
 	predictions,
 	availableBadges,
 } from "../data/mockData";
-import { Button } from "./ui/button";
-import { ArrowLeft, Trophy, Target, TrendingUp, Award } from "lucide-react";
+import { Trophy, Target, TrendingUp, Award } from "lucide-react";
 
 export function Profile() {
-	const navigate = useNavigate();
 	// Groupes de l'utilisateur
 	const userGroups = groups.filter((g) => g.members.includes(currentUser.id));
 
@@ -33,23 +30,14 @@ export function Profile() {
 			: 0;
 
 	return (
-		<div className="max-w-5xl mx-auto px-6 py-12">
-			<Button
-				onClick={() => navigate("/")}
-				variant="ghost"
-				className="mb-6 hover:bg-[#F5F4F1]"
-			>
-				<ArrowLeft className="w-4 h-4 mr-2" />
-				Retour au dashboard
-			</Button>
-
-			<div className="mb-12">
+		<div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-12">
+			<div className="mb-8 sm:mb-12">
 				<h1 className="mb-2">Mon Profil</h1>
-				<p className="text-gray-600 text-lg">{currentUser.email}</p>
+				<p className="text-gray-600 break-all">{currentUser.email}</p>
 			</div>
 
 			{/* Statistiques principales */}
-			<div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+			<div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-8 sm:mb-12">
 				<div className="bg-white border border-[#E5E4E1] p-6">
 					<div className="flex items-center gap-3 mb-3">
 						<Trophy className="w-6 h-6 text-[#C4A15B]" />
@@ -86,9 +74,9 @@ export function Profile() {
 			</div>
 
 			{/* Mes groupes */}
-			<div className="mb-12">
+			<div className="mb-8 sm:mb-12">
 				<h2 className="mb-6">Mes Groupes</h2>
-				<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+				<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 					{userGroups.map((group) => (
 						<div
 							key={group.id}

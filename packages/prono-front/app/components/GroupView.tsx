@@ -11,6 +11,7 @@ import type { Prediction, Match } from "../data/mockData";
 import { MatchCard } from "./MatchCard";
 import { Leaderboard } from "./Leaderboard";
 import { PredictionModal } from "./PredictionModal";
+import { MatchPredictionsModal } from "./MatchPredictionsModal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Button } from "./ui/button";
 import { ArrowLeft, Share2 } from "lucide-react";
@@ -23,6 +24,10 @@ export function GroupView() {
 	const [predictions, setPredictions] = useState(initialPredictions);
 	const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
 	const [isPredictionModalOpen, setIsPredictionModalOpen] = useState(false);
+	const [isMatchPredictionsModalOpen, setIsMatchPredictionsModalOpen] =
+		useState(false);
+	const [selectedMatchForPredictions, setSelectedMatchForPredictions] =
+		useState<Match | null>(null);
 
 	if (!group || !groupId) {
 		return (
@@ -33,6 +38,7 @@ export function GroupView() {
 	}
 
 	// Filtrer les matchs par statut
+	const liveMatches = matches.filter((m) => m.status === "live");
 	const upcomingMatches = matches.filter((m) => m.status === "upcoming");
 	const completedMatches = matches.filter((m) => m.status === "completed");
 
@@ -46,12 +52,24 @@ export function GroupView() {
 		);
 	};
 
+	// Obtenir les prédictions du groupe pour un match
+	const getMatchPredictions = (matchId: string): Prediction[] => {
+		return predictions.filter(
+			(p) => p.match_id === matchId && p.group_id === groupId,
+		);
+	};
+
 	// Classement du groupe
 	const leaderboard = getGroupLeaderboard(groupId);
 
 	const handleOpenPredictionModal = (match: Match) => {
 		setSelectedMatch(match);
 		setIsPredictionModalOpen(true);
+	};
+
+	const handleOpenMatchPredictionsModal = (match: Match) => {
+		setSelectedMatchForPredictions(match);
+		setIsMatchPredictionsModalOpen(true);
 	};
 
 	const handleSubmitPrediction = (predictionData: {
@@ -84,7 +102,7 @@ export function GroupView() {
 	};
 
 	return (
-		<div className="max-w-7xl mx-auto px-6 py-12">
+		<div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-12">
 			{/* Header */}
 			<div className="mb-8">
 				<Button
@@ -93,21 +111,21 @@ export function GroupView() {
 					className="mb-4 hover:bg-[#F5F4F1]"
 				>
 					<ArrowLeft className="w-4 h-4 mr-2" />
-					Retour au dashboard
+					Retour
 				</Button>
 
-				<div className="flex items-start justify-between">
+				<div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
 					<div>
 						<h1 className="mb-2">{group.name}</h1>
 						{group.description && (
-							<p className="text-gray-600 text-lg">{group.description}</p>
+							<p className="text-gray-600">{group.description}</p>
 						)}
 					</div>
 
 					<Button
 						onClick={handleShareInviteCode}
 						variant="outline"
-						className="border-[#C4A15B] text-[#C4A15B] hover:bg-[#C4A15B] hover:text-white"
+						className="border-[#C4A15B] text-[#C4A15B] hover:bg-[#C4A15B] hover:text-white w-full sm:w-auto"
 					>
 						<Share2 className="w-4 h-4 mr-2" />
 						Code : {group.invite_code}
@@ -116,9 +134,29 @@ export function GroupView() {
 			</div>
 
 			{/* Layout principal : Contenu + Sidebar */}
-			<div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+			<div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
 				{/* Contenu principal : Matchs */}
 				<div className="lg:col-span-2">
+					{/* Matchs LIVE */}
+					{liveMatches.length > 0 && (
+						<div className="mb-8">
+							<h3 className="mb-4">Matchs en direct</h3>
+							<div className="space-y-4">
+								{liveMatches.map((match) => (
+									<MatchCard
+										key={match.id}
+										match={match}
+										prediction={getUserPrediction(match.id)}
+										onViewPredictions={() =>
+											handleOpenMatchPredictionsModal(match)
+										}
+										groupPredictionsCount={getMatchPredictions(match.id).length}
+									/>
+								))}
+							</div>
+						</div>
+					)}
+
 					<Tabs defaultValue="upcoming" className="w-full">
 						<TabsList className="grid w-full grid-cols-2 mb-6 bg-[#F5F4F1] border border-[#E5E4E1]">
 							<TabsTrigger
@@ -150,6 +188,10 @@ export function GroupView() {
 										match={match}
 										prediction={getUserPrediction(match.id)}
 										onPredict={() => handleOpenPredictionModal(match)}
+										onViewPredictions={() =>
+											handleOpenMatchPredictionsModal(match)
+										}
+										groupPredictionsCount={getMatchPredictions(match.id).length}
 									/>
 								))
 							)}
@@ -169,6 +211,10 @@ export function GroupView() {
 										key={match.id}
 										match={match}
 										prediction={getUserPrediction(match.id)}
+										onViewPredictions={() =>
+											handleOpenMatchPredictionsModal(match)
+										}
+										groupPredictionsCount={getMatchPredictions(match.id).length}
 									/>
 								))
 							)}
@@ -191,6 +237,18 @@ export function GroupView() {
 				isOpen={isPredictionModalOpen}
 				onClose={() => setIsPredictionModalOpen(false)}
 				onSubmit={handleSubmitPrediction}
+			/>
+
+			{/* Modale des pronostics du groupe */}
+			<MatchPredictionsModal
+				match={selectedMatchForPredictions}
+				predictions={
+					selectedMatchForPredictions
+						? getMatchPredictions(selectedMatchForPredictions.id)
+						: []
+				}
+				isOpen={isMatchPredictionsModalOpen}
+				onClose={() => setIsMatchPredictionsModalOpen(false)}
 			/>
 		</div>
 	);

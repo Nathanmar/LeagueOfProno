@@ -1,7 +1,14 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { groups as initialGroups, currentUser } from "../data/mockData";
-import type { Group } from "../data/mockData";
+import {
+	groups as initialGroups,
+	currentUser,
+	matches,
+	predictions,
+	type Group,
+	type Match,
+	type Prediction,
+} from "../data/mockData";
 import { Button } from "./ui/button";
 import {
 	Dialog,
@@ -13,7 +20,9 @@ import {
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
-import { Users, Plus, LogIn } from "lucide-react";
+import { MatchCard } from "./MatchCard";
+import { MatchPredictionsModal } from "./MatchPredictionsModal";
+import { Users, Plus, LogIn, Trophy, UserPlus } from "lucide-react";
 
 export function Dashboard() {
 	const navigate = useNavigate();
@@ -23,9 +32,32 @@ export function Dashboard() {
 	const [newGroupName, setNewGroupName] = useState("");
 	const [newGroupDescription, setNewGroupDescription] = useState("");
 	const [inviteCode, setInviteCode] = useState("");
+	const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
+	const [isMatchPredictionsModalOpen, setIsMatchPredictionsModalOpen] =
+		useState(false);
 
 	// Groupes de l'utilisateur actuel
 	const userGroups = groups.filter((g) => g.members.includes(currentUser.id));
+
+	// Matchs en cours
+	const liveMatches = matches.filter((m) => m.status === "live");
+
+	// Obtenir la prédiction de l'utilisateur pour un match
+	const getUserPrediction = (matchId: string): Prediction | undefined => {
+		return predictions.find(
+			(p) => p.user_id === currentUser.id && p.match_id === matchId,
+		);
+	};
+
+	// Obtenir tous les pronostics pour un match (tous groupes confondus)
+	const getMatchPredictions = (matchId: string): Prediction[] => {
+		return predictions.filter((p) => p.match_id === matchId);
+	};
+
+	const handleOpenMatchPredictionsModal = (match: Match) => {
+		setSelectedMatch(match);
+		setIsMatchPredictionsModalOpen(true);
+	};
 
 	const handleCreateGroup = () => {
 		if (!newGroupName.trim()) return;
@@ -76,87 +108,139 @@ export function Dashboard() {
 	};
 
 	return (
-		<div className="max-w-7xl mx-auto px-6 py-12">
-			<div className="mb-12">
-				<h1 className="mb-3">Mes Groupes</h1>
-				<p className="text-gray-600 text-lg">
-					Bienvenue, {currentUser.name} ! Sélectionnez un groupe pour voir les
-					matchs et faire vos pronostics.
+		<div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-12">
+			<div className="mb-8 sm:mb-12">
+				<h1 className="mb-3">Tableau de bord</h1>
+				<p className="text-gray-600">
+					Bienvenue, {currentUser.name} ! Voici un aperçu de votre activité.
 				</p>
 			</div>
 
-			{/* Actions */}
-			<div className="flex gap-4 mb-8">
-				<Button
-					onClick={() => setIsCreateModalOpen(true)}
-					className="bg-[#548CB4] hover:bg-[#4a7ca0] text-white"
-				>
-					<Plus className="w-4 h-4 mr-2" />
-					Créer un groupe
-				</Button>
-				<Button
-					onClick={() => setIsJoinModalOpen(true)}
-					variant="outline"
-					className="border-[#548CB4] text-[#548CB4] hover:bg-[#548CB4] hover:text-white"
-				>
-					<LogIn className="w-4 h-4 mr-2" />
-					Rejoindre un groupe
-				</Button>
-			</div>
-
-			{/* Liste des groupes */}
-			{userGroups.length === 0 ? (
-				<div className="bg-white border border-[#E5E4E1] p-12 text-center">
-					<Users className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-					<h3 className="mb-2">Aucun groupe</h3>
-					<p className="text-gray-600 mb-6">
-						Créez votre premier groupe ou rejoignez-en un avec un code
-						d'invitation.
-					</p>
-				</div>
-			) : (
-				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-					{userGroups.map((group) => (
-						<div
-							key={group.id}
-							className="bg-white border border-[#E5E4E1] p-6 hover:border-[#548CB4] transition-colors"
-						>
-							<div className="mb-4">
-								<h3 className="mb-2">{group.name}</h3>
-								{group.description && (
-									<p className="text-gray-600 text-sm">{group.description}</p>
-								)}
-							</div>
-
-							<div className="mb-6">
-								<div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
-									<Users className="w-4 h-4" />
-									<span>
-										{group.members.length} membre
-										{group.members.length > 1 ? "s" : ""}
-									</span>
-								</div>
-								<div className="text-sm text-gray-600">
-									Code :{" "}
-									<span
-										className="font-mono bg-[#F5F4F1] px-2 py-1"
-										style={{ fontWeight: 600 }}
-									>
-										{group.invite_code}
+			{/* Grid principale */}
+			<div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
+				{/* Colonne principale */}
+				<div className="lg:col-span-2 space-y-8">
+					{/* Matchs en cours */}
+					{liveMatches.length > 0 && (
+						<section>
+							<div className="flex items-center justify-between mb-6">
+								<h2>Matchs en direct</h2>
+								<div className="flex items-center gap-2 text-red-500">
+									<div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+									<span className="text-sm" style={{ fontWeight: 600 }}>
+										{liveMatches.length} LIVE
 									</span>
 								</div>
 							</div>
+							<div className="space-y-4">
+								{liveMatches.map((match) => (
+									<MatchCard
+										key={match.id}
+										match={match}
+										prediction={getUserPrediction(match.id)}
+										onViewPredictions={() =>
+											handleOpenMatchPredictionsModal(match)
+										}
+										groupPredictionsCount={getMatchPredictions(match.id).length}
+									/>
+								))}
+							</div>
+						</section>
+					)}
 
-							<Button
-								onClick={() => navigate(`/groups/${group.id}`)}
-								className="w-full bg-[#548CB4] hover:bg-[#4a7ca0] text-white"
-							>
-								Voir le groupe
-							</Button>
+					{/* Mes Groupes */}
+					<section>
+						<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+							<h2>Mes Groupes</h2>
+							<div className="flex gap-2 sm:gap-3">
+								<Button
+									onClick={() => setIsCreateModalOpen(true)}
+									size="sm"
+									className="bg-[#548CB4] hover:bg-[#4a7ca0] text-white flex-1 sm:flex-none"
+								>
+									<Plus className="w-4 h-4 mr-2" />
+									Créer
+								</Button>
+								<Button
+									onClick={() => setIsJoinModalOpen(true)}
+									size="sm"
+									variant="outline"
+									className="border-[#548CB4] text-[#548CB4] hover:bg-[#548CB4] hover:text-white flex-1 sm:flex-none"
+								>
+									<LogIn className="w-4 h-4 mr-2" />
+									Rejoindre
+								</Button>
+							</div>
 						</div>
-					))}
+
+						{userGroups.length === 0 ? (
+							<div className="bg-white border border-[#E5E4E1] p-12 text-center">
+								<Users className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+								<h3 className="mb-2">Aucun groupe</h3>
+								<p className="text-gray-600 mb-6">
+									Créez votre premier groupe ou rejoignez-en un avec un code
+									d'invitation.
+								</p>
+							</div>
+						) : (
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+								{userGroups.map((group) => (
+									<button
+										key={group.id}
+										type="button"
+										className="bg-white border border-[#E5E4E1] p-6 hover:border-[#548CB4] transition-colors cursor-pointer text-left"
+										onClick={() => navigate(`/groups/${group.id}`)}
+									>
+										<div className="mb-4">
+											<h4 className="mb-1">{group.name}</h4>
+											{group.description && (
+												<p className="text-gray-600 text-sm">
+													{group.description}
+												</p>
+											)}
+										</div>
+
+										<div className="flex items-center justify-between">
+											<div className="flex items-center gap-2 text-sm text-gray-600">
+												<Users className="w-4 h-4" />
+												<span>
+													{group.members.length} membre
+													{group.members.length > 1 ? "s" : ""}
+												</span>
+											</div>
+											<span className="text-xs font-mono bg-[#F5F4F1] px-2 py-1">
+												{group.invite_code}
+											</span>
+										</div>
+									</button>
+								))}
+							</div>
+						)}
+					</section>
 				</div>
-			)}
+
+				{/* Sidebar */}
+				<div className="lg:col-span-1 space-y-6">
+					{/* Statistiques rapides */}
+					<section className="bg-gradient-to-br from-[#548CB4] to-[#4a7ca0] text-white p-6">
+						<h3 className="mb-4 text-white">Vos statistiques</h3>
+						<div className="space-y-4">
+							<div>
+								<div className="text-sm opacity-90">Points totaux</div>
+								<div className="text-3xl" style={{ fontWeight: 700 }}>
+									{currentUser.total_points}
+								</div>
+							</div>
+							<div className="border-t border-white/20 pt-4">
+								<div className="text-sm opacity-90">Groupes actifs</div>
+								<div className="text-2xl" style={{ fontWeight: 700 }}>
+									{userGroups.length}
+								</div>
+							</div>
+						</div>
+					</section>
+				</div>
+			</div>
 
 			{/* Modale Créer un groupe */}
 			<Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
@@ -251,6 +335,14 @@ export function Dashboard() {
 					</div>
 				</DialogContent>
 			</Dialog>
+
+			{/* Modale des pronostics d'un match */}
+			<MatchPredictionsModal
+				match={selectedMatch}
+				predictions={selectedMatch ? getMatchPredictions(selectedMatch.id) : []}
+				isOpen={isMatchPredictionsModalOpen}
+				onClose={() => setIsMatchPredictionsModalOpen(false)}
+			/>
 		</div>
 	);
 }
