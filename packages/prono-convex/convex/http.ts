@@ -1,36 +1,58 @@
 import { Hono } from "hono";
-import type { HonoWithConvex } from "convex-helpers/server/hono";
-import { HttpRouterWithHono } from "convex-helpers/server/hono";
+import { HttpRouterWithHono, type HonoWithConvex } from "convex-helpers/server/hono"; 
 import type { ActionCtx } from "./_generated/server.js";
-import { httpAction } from "./_generated/server.js";
 
-// ✅ Import des références Convex (auto-générées)
 import { api } from "./_generated/api.js";
 
-const app: HonoWithConvex<ActionCtx> = new Hono();
+const app: HonoWithConvex<ActionCtx> = new Hono(); 
 
-app.get("/hello", (c) => c.text("Hello from Hono + Convex!"));
+app.get("/hello", (c) => c.text("Bonjour de Hono + Convex!"));
 
+const getActionCtx = (c: any): ActionCtx => {
+
+    if (!c.runQuery) {
+        throw new Error("ActionCtx is missing runQuery property.");
+    }
+    return c as ActionCtx;
+};
+
+
+app.get("/matches", async (c) => {
+  try {
+
+   const ctx = c.env; 
+        const data = await ctx.runQuery(api.matches.listMatches);
+        return c.json(data);
+  } catch (e: any) {
+    console.error("Erreur runtime dans /matches:", e.message);
+    return c.json({ success: false, error: "Contexte Convex non initialisé." }, 500);
+  }
+});
+
+
+app.get("/groups", async (c) => {
+  try {
+
+   const ctx = c.env; 
+        const data = await ctx.runQuery(api.groups.listGroups);
+        return c.json(data);
+  } catch (e: any) {
+    console.error("Erreur runtime dans /groups:", e.message);
+    return c.json({ success: false, error: "Contexte Convex non initialisé." }, 500);
+  }
+});
+
+
+app.get("/predictions", async (c) => {
+  try {
+    const actionCtx = getActionCtx(c);
+    const data = await actionCtx.runQuery(api.predictions.listPredictions); 
+    return c.json(data);
+  } catch (e: any) {
+    return c.json({ success: false, error: "Contexte Convex non initialisé." }, 500);
+  }
+});
+
+
+// Exportation par défaut : C'est cette ligne qui lie le routeur Hono au système Convex.
 export default new HttpRouterWithHono(app);
-
-// ✅ Utilisation correcte de la référence Convex
-export const getMatches = httpAction(async (ctx) => {
-  const data = await ctx.runQuery(api.matches.listMatches);
-  return new Response(JSON.stringify(data), {
-    headers: { "Content-Type": "application/json" },
-  });
-});
-
-export const getGroups = httpAction(async (ctx) => {
-  const data = await ctx.runQuery(api.groups.listGroups);
-  return new Response(JSON.stringify(data), {
-    headers: { "Content-Type": "application/json" },
-  });
-});
-
-export const getPredictions = httpAction(async (ctx) => {
-  const data = await ctx.runQuery(api.groups.listPredictions);
-  return new Response(JSON.stringify(data), {
-    headers: { "Content-Type": "application/json" },
-  });
-});

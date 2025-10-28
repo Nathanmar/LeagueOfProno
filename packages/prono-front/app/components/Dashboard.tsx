@@ -1,12 +1,5 @@
-import { useState } from "react";
-import type { Group, Match, Prediction } from "../data/mockData";
-import {
-	groups as initialGroups,
-	currentUser,
-	matches,
-	predictions,
-	users,
-} from "../data/mockData";
+import { useState, useEffect } from "react"; // <-- Assurez-vous d'importer useEffect
+import { fetchMatches /*, fetchGroups, etc. */ } from "../../api/pronoApi";
 import { Button } from "./ui/button";
 import {
 	Dialog,
