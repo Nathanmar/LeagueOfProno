@@ -3,7 +3,10 @@ module.exports = {
 	content: [
 		'./index.html',
 		'./app/**/*.{js,ts,jsx,tsx}',
+		'./app/components/**/*.{js,ts,jsx,tsx}',
 		'./app/routes/**/*.{js,ts,jsx,tsx}',
+		'./app/routes.ts',
+		'./app/root.tsx',
 	],
 	theme: {
 		extend: {
