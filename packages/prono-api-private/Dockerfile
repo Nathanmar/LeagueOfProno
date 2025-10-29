@@ -1,26 +1,52 @@
+# Build stage
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Install pnpm
+RUN npm install -g pnpm
+
+# Copy workspace files
+COPY pnpm-workspace.yaml pnpm-lock.yaml ./
+
+# Copy prono-api-private package
+COPY packages/prono-api-private ./packages/prono-api-private
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Build the API
+WORKDIR /app/packages/prono-api-private
+RUN pnpm run build
+
+# Production stage
 FROM node:20-alpine
 
 WORKDIR /app
 
-# Copier les fichiers de configuration
-COPY package.json pnpm-lock.yaml ./
-COPY prisma ./prisma
+# Install pnpm and create app user
+RUN npm install -g pnpm && addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
 
-# Installer les dépendances
-RUN npm install -g pnpm && pnpm install --frozen-lockfile --prod=false
+# Copy only necessary files from builder
+COPY --from=builder /app/packages/prono-api-private/dist ./dist
+COPY --from=builder /app/packages/prono-api-private/package.json ./
+COPY --from=builder /app/packages/prono-api-private/prisma ./prisma
+COPY --from=builder /app/pnpm-lock.yaml ./
 
-# Copier le code source
-COPY src ./src
-COPY tsconfig.json ./
-
-# Build
-RUN pnpm run build
-
-# Nettoyer les dépendances de dev
+# Install only production dependencies
 RUN pnpm install --frozen-lockfile --prod
 
-# Exposer le port
+# Change ownership
+RUN chown -R nodejs:nodejs /app
+
+USER nodejs
+
+# Expose port
 EXPOSE 3001
 
-# Commande de démarrage
-CMD ["pnpm", "start"]
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD node -e "require('http').get('http://localhost:3001/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+
+# Start the application
+CMD ["node", "dist/index.js"]
