@@ -20,7 +20,7 @@ import {
 } from "./ui/dropdown-menu";
 import { useNavigate } from "react-router";
 import { useEffect } from "react";
-import { getProfile } from "../services/profileService";
+import { getAggregatedUserStats } from "../services/scoreAggregationService";
 
 interface HeaderProps {
 	onNavigateToHome: () => void;
@@ -46,12 +46,12 @@ export function Header({
 	const navigate = useNavigate();
 	const [userPoints, setUserPoints] = useState<number>(0);
 
-	// Charger les points de l'utilisateur
+	// Charger les points agrégés de l'utilisateur depuis tous ses groupes
 	useEffect(() => {
 		const loadUserPoints = async () => {
-			const { profile, error } = await getProfile();
-			if (!error && profile) {
-				setUserPoints(profile.score || 0);
+			const { stats, error } = await getAggregatedUserStats();
+			if (!error && stats) {
+				setUserPoints(stats.total_points);
 			}
 		};
 
