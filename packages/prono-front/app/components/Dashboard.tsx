@@ -24,6 +24,8 @@ import { getMatches, type Match } from "../services/matchesService";
 import { createGroup, joinGroup, getGroups } from "../services/groupsService";
 import { getFriends } from "../services/friendsService";
 import { getProfile } from "../services/profileService";
+import { getAggregatedUserStats } from "../services/scoreAggregationService";
+import type { AggregatedStats } from "../services/scoreAggregationService";
 
 interface Group {
 	id: string;
@@ -56,11 +58,9 @@ export function Dashboard({
 	const [userFriends, setUserFriends] = useState<
 		Array<{ id: string; username: string; score: number }>
 	>([]);
-	const [userStats, setUserStats] = useState<{
-		score: number;
-		groupsCount: number;
-		friendsCount: number;
-	}>({ score: 0, groupsCount: 0, friendsCount: 0 });
+	const [dashboardStats, setDashboardStats] = useState<AggregatedStats | null>(
+		null,
+	);
 	const [predictions, setPredictions] = useState<Prediction[]>([]);
 	const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 	const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
@@ -80,7 +80,18 @@ export function Dashboard({
 			try {
 				setLoading(true);
 
-				// Charger les groupes de l'utilisateur
+				// Charger toutes les statistiques agrégées du dashboard
+				const { stats, error: statsError } = await getAggregatedUserStats();
+				if (!statsError && stats) {
+					setDashboardStats(stats);
+				} else {
+					console.error(
+						"Erreur lors du chargement des statistiques:",
+						statsError,
+					);
+				}
+
+				// Charger les groupes et amis séparément pour les afficher
 				const { groups, error: groupsError } = await getGroups();
 				if (!groupsError) {
 					setLocalGroups(groups);
@@ -88,24 +99,11 @@ export function Dashboard({
 					console.error("Erreur lors du chargement des groupes:", groupsError);
 				}
 
-				// Charger les amis
 				const { friends, error: friendsError } = await getFriends();
 				if (!friendsError) {
 					setUserFriends(friends);
 				} else {
 					console.error("Erreur lors du chargement des amis:", friendsError);
-				}
-
-				// Charger le profil et les stats
-				const { profile, error: profileError } = await getProfile();
-				if (!profileError && profile) {
-					setUserStats({
-						score: profile.score || 0,
-						groupsCount: profile.groups_count || 0,
-						friendsCount: profile.friends_count || 0,
-					});
-				} else {
-					console.error("Erreur lors du chargement du profil:", profileError);
 				}
 			} catch (err) {
 				setError("Erreur lors du chargement des données");
@@ -411,19 +409,31 @@ export function Dashboard({
 							<div>
 								<div className="text-sm opacity-90">Points totaux</div>
 								<div className="text-3xl" style={{ fontWeight: 700 }}>
-									{userStats.score}
+									{dashboardStats?.total_points || 0}
+								</div>
+							</div>
+							<div className="border-t border-white/20 pt-4">
+								<div className="text-sm opacity-90">Taux de précision</div>
+								<div className="flex items-end gap-2">
+									<div className="text-2xl" style={{ fontWeight: 700 }}>
+										{dashboardStats?.accuracy || 0}%
+									</div>
+									<div className="text-xs opacity-75 pb-1">
+										({dashboardStats?.correct_predictions} /{" "}
+										{dashboardStats?.total_predictions})
+									</div>
 								</div>
 							</div>
 							<div className="border-t border-white/20 pt-4">
 								<div className="text-sm opacity-90">Groupes actifs</div>
 								<div className="text-2xl" style={{ fontWeight: 700 }}>
-									{userStats.groupsCount}
+									{dashboardStats?.groups_count || 0}
 								</div>
 							</div>
 							<div className="border-t border-white/20 pt-4">
 								<div className="text-sm opacity-90">Amis</div>
 								<div className="text-2xl" style={{ fontWeight: 700 }}>
-									{userStats.friendsCount}
+									{userFriends.length}
 								</div>
 							</div>
 						</div>

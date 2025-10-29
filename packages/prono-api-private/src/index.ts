@@ -1550,6 +1550,8 @@ app.post("/api/matches/:matchId/calculate-points", async (c) => {
 
 		// Calculer les points pour chaque prédiction
 		let updatedCount = 0;
+		const pointsByUserGroup: { [key: string]: number } = {}; // Track points by user_id + group_id
+
 		for (const prediction of predictions) {
 			const result_score_a = match.result_score_a || 0;
 			const result_score_b = match.result_score_b || 0;
@@ -1589,13 +1591,63 @@ app.post("/api/matches/:matchId/calculate-points", async (c) => {
 				},
 			});
 
+			// Tracker les points par user + group pour agréger
+			const key = `${prediction.user_id}:${prediction.group_id}`;
+			pointsByUserGroup[key] = (pointsByUserGroup[key] || 0) + points;
+
 			updatedCount += 1;
+		}
+
+		// Mettre à jour les scores dans UserGroup et User.total_points
+		const usersToUpdate = new Map<string, number>();
+		
+		for (const [key, points] of Object.entries(pointsByUserGroup)) {
+			const [userId, groupId] = key.split(":");
+			
+			// Récupérer le score actuel dans UserGroup
+			const currentUserGroup = await prisma.userGroup.findUnique({
+				where: {
+					user_id_group_id: {
+						user_id: userId,
+						group_id: groupId,
+					},
+				},
+			});
+
+			// Ajouter les points au score du groupe
+			const newScore = (currentUserGroup?.score || 0) + points;
+			await prisma.userGroup.update({
+				where: {
+					user_id_group_id: {
+						user_id: userId,
+						group_id: groupId,
+					},
+				},
+				data: { score: newScore },
+			});
+
+			// Tracker le total des points pour cet utilisateur
+			usersToUpdate.set(userId, (usersToUpdate.get(userId) || 0) + points);
+		}
+
+		// Mettre à jour le total des points pour chaque utilisateur
+		for (const [userId, points] of usersToUpdate) {
+			const currentUser = await prisma.user.findUnique({
+				where: { id: userId },
+			});
+
+			const newTotal = (currentUser?.total_points || 0) + points;
+			await prisma.user.update({
+				where: { id: userId },
+				data: { total_points: newTotal },
+			});
 		}
 
 		return c.json({
 			message: "Points calculated successfully",
 			match_id: matchId,
 			predictions_updated: updatedCount,
+			users_updated: usersToUpdate.size,
 		});
 	} catch (error) {
 		console.error("Error calculating points:", error);
@@ -1611,6 +1663,66 @@ app.post("/api/matches/:matchId/calculate-points", async (c) => {
 
 // Route pour récupérer les points de l'utilisateur dans un groupe
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
+// Route pour récupérer le score directement depuis UserGroup (recommandée)
+app.get("/api/groups/:id/score", async (c) => {
+	const user = c.get("user") as User | null;
+	const groupId = c.req.param("id");
+
+	if (!user) {
+		return c.json({ error: "Not authenticated" }, { status: 401 });
+	}
+
+	try {
+		// Récupérer directement le score depuis UserGroup
+		const userGroup = await prisma.userGroup.findUnique({
+			where: {
+				user_id_group_id: {
+					user_id: user.id,
+					group_id: groupId,
+				},
+			},
+		});
+
+		if (!userGroup) {
+			return c.json({ error: "You are not a member of this group" }, { status: 403 });
+		}
+
+		// Récupérer aussi les stats complètes pour le contexte
+		const predictions = await prisma.prediction.findMany({
+			where: {
+				user_id: user.id,
+				group_id: groupId,
+			},
+		});
+
+		// Calculer les statistiques à partir des prédictions
+		let correctPredictions = 0;
+		let exactScores = 0;
+		for (const p of predictions) {
+			if (p.is_correct) correctPredictions += 1;
+			if (p.is_exact_score) exactScores += 1;
+		}
+		const totalPredictions = predictions.length;
+
+		return c.json({
+			user_id: user.id,
+			group_id: groupId,
+			score: userGroup.score,
+			correct_predictions: correctPredictions,
+			total_predictions: totalPredictions,
+			exact_scores: exactScores,
+			accuracy: totalPredictions > 0 ? Math.round((correctPredictions / totalPredictions) * 100) : 0,
+			joined_at: userGroup.joined_at,
+		});
+	} catch (error) {
+		console.error("Error fetching group score:", error);
+		return c.json(
+			{ error: "Failed to fetch group score", details: error instanceof Error ? error.message : String(error) },
+			{ status: 500 }
+		);
+	}
+});
+
 app.get("/api/groups/:id/user-stats", async (c) => {
 	const user = c.get("user") as User | null;
 	const groupId = c.req.param("id");

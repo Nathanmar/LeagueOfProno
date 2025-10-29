@@ -19,6 +19,8 @@ import {
 	DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { useNavigate } from "react-router";
+import { useEffect } from "react";
+import { getProfile } from "../services/profileService";
 
 interface HeaderProps {
 	onNavigateToHome: () => void;
@@ -42,6 +44,21 @@ export function Header({
 	const [isOpen, setIsOpen] = useState(false);
 	const { isAuthenticated, user, logout } = useAuth();
 	const navigate = useNavigate();
+	const [userPoints, setUserPoints] = useState<number>(0);
+
+	// Charger les points de l'utilisateur
+	useEffect(() => {
+		const loadUserPoints = async () => {
+			const { profile, error } = await getProfile();
+			if (!error && profile) {
+				setUserPoints(profile.score || 0);
+			}
+		};
+
+		if (isAuthenticated && user) {
+			loadUserPoints();
+		}
+	}, [isAuthenticated, user]);
 
 	const navItems = [
 		{
@@ -210,7 +227,7 @@ export function Header({
 									</div>
 									<div className="text-xs text-gray-600">
 										<Trophy className="w-3 h-3 inline mr-1" />
-										{user?.id ? "Actif" : "---"} points
+										{userPoints} points
 									</div>
 								</div>
 								<Avatar className="w-9 h-9 border-2 border-[#548CB4]">
@@ -278,7 +295,7 @@ export function Header({
 										</div>
 										<div className="text-xs text-gray-600">
 											<Trophy className="w-3 h-3 inline mr-1" />
-											{user?.id ? "Actif" : "---"} points
+											{userPoints} points
 										</div>
 									</div>
 								</button>

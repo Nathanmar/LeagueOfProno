@@ -28,7 +28,9 @@ export {
 // Friends Service
 export {
 	getFriends,
-	addFriend,
+	sendFriendRequest,
+	acceptFriendRequest,
+	rejectFriendRequest,
 	removeFriend,
 	type Friend,
 	type FriendsResponse,
@@ -52,3 +54,8 @@ export {
 	type PredictionsResponse,
 } from "./predictionsService";
 
+// Dashboard Service
+export {
+	getDashboardStats,
+	type DashboardStats,
+} from "./dashboardService";

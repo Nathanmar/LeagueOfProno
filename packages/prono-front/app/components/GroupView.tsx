@@ -16,7 +16,7 @@ import {
 import { useRealtimeMatches } from "../hooks/useRealtimeMatches";
 import { useMatchPointsCalculation } from "../hooks/useMatchPointsCalculation";
 import { useAuth } from "../contexts/AuthContext";
-import { getUserGroupStats } from "../services/userStatsService";
+import { getUserGroupScore } from "../services/userStatsService";
 import type { Match as MatchType } from "../services/matchesService";
 import type { UserStats } from "../services/userStatsService";
 
@@ -113,7 +113,7 @@ export function GroupView({ groupId, onBack }: GroupViewProps) {
 	useEffect(() => {
 		const loadUserStats = async () => {
 			try {
-				const { stats, error } = await getUserGroupStats(groupId);
+				const { stats, error } = await getUserGroupScore(groupId);
 				if (error) {
 					console.error("Erreur lors du chargement des statistiques:", error);
 					setUserStats(null);
@@ -140,7 +140,7 @@ export function GroupView({ groupId, onBack }: GroupViewProps) {
 				console.log("[GROUPVIEW] Prédictions reloadées après calcul de points");
 			}
 
-			const { stats, error: statsError } = await getUserGroupStats(groupId);
+			const { stats, error: statsError } = await getUserGroupScore(groupId);
 			if (!statsError && stats) {
 				setUserStats(stats);
 				console.log("[GROUPVIEW] Statistiques reloadées");
@@ -308,7 +308,7 @@ export function GroupView({ groupId, onBack }: GroupViewProps) {
 				setIsPredictionModalOpen(false);
 
 				// Recharger les statistiques de l'utilisateur
-				const { stats, error: statsError } = await getUserGroupStats(groupId);
+				const { stats, error: statsError } = await getUserGroupScore(groupId);
 				if (!statsError && stats) {
 					setUserStats(stats);
 				}

@@ -5,9 +5,11 @@ import { useEffect, useState } from "react";
 import { getProfile } from "../services/profileService";
 import { getGroups } from "../services/groupsService";
 import { getUserBadges, AVAILABLE_BADGES } from "../services/badgesService";
+import { getAggregatedUserStats } from "../services/scoreAggregationService";
 import type { UserProfile } from "../services/profileService";
 import type { Group } from "../services/groupsService";
 import type { Badge } from "../services/badgesService";
+import type { AggregatedStats } from "../services/scoreAggregationService";
 
 interface ProfileProps {
 	onBack: () => void;
@@ -18,6 +20,8 @@ export function Profile({ onBack }: ProfileProps) {
 	const [profile, setProfile] = useState<UserProfile | null>(null);
 	const [userGroups, setUserGroups] = useState<Group[]>([]);
 	const [userBadges, setUserBadges] = useState<Badge[]>([]);
+	const [aggregatedStats, setAggregatedStats] =
+		useState<AggregatedStats | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 
@@ -25,10 +29,11 @@ export function Profile({ onBack }: ProfileProps) {
 		const loadProfileData = async () => {
 			try {
 				setLoading(true);
-				const [profileRes, groupsRes, badgesRes] = await Promise.all([
+				const [profileRes, groupsRes, badgesRes, statsRes] = await Promise.all([
 					getProfile(),
 					getGroups(),
 					getUserBadges(),
+					getAggregatedUserStats(),
 				]);
 
 				if (profileRes.error) {
@@ -44,6 +49,10 @@ export function Profile({ onBack }: ProfileProps) {
 				if (!badgesRes.error) {
 					setUserBadges(badgesRes.badges || []);
 				}
+
+				if (!statsRes.error) {
+					setAggregatedStats(statsRes.stats);
+				}
 			} catch (err) {
 				setError("Erreur lors du chargement du profil");
 				console.error(err);
@@ -54,14 +63,6 @@ export function Profile({ onBack }: ProfileProps) {
 
 		loadProfileData();
 	}, []);
-
-	// Calcul du taux de réussite
-	const totalPredictions = profile?.predictions_count || 0;
-	const correctPredictions = profile?.wins_count || 0;
-	const successRate =
-		totalPredictions > 0
-			? Math.round((correctPredictions / totalPredictions) * 100)
-			: 0;
 
 	// Récupérer les badges déverrouillés
 	const unlockedBadgeIds = new Set(userBadges.map((b) => b.id));
@@ -87,7 +88,7 @@ export function Profile({ onBack }: ProfileProps) {
 				</div>
 			) : (
 				<>
-					{/* Statistiques principales */}
+					{/* Statistiques principales - Agrégées */}
 					<div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-8 sm:mb-12">
 						<div className="bg-white border border-[#E5E4E1] p-6">
 							<div className="flex items-center gap-3 mb-3">
@@ -95,8 +96,12 @@ export function Profile({ onBack }: ProfileProps) {
 								<h4>Points Totaux</h4>
 							</div>
 							<div className="text-4xl" style={{ fontWeight: 700 }}>
-								{profile?.score || 0}
+								{aggregatedStats?.total_points || profile?.score || 0}
 							</div>
+							<p className="text-sm text-gray-600 mt-1">
+								Sur {aggregatedStats?.groups_count || userGroups.length}{" "}
+								groupe(s)
+							</p>
 						</div>
 
 						<div className="bg-white border border-[#E5E4E1] p-6">
@@ -105,10 +110,11 @@ export function Profile({ onBack }: ProfileProps) {
 								<h4>Taux de Réussite</h4>
 							</div>
 							<div className="text-4xl" style={{ fontWeight: 700 }}>
-								{successRate}%
+								{aggregatedStats?.accuracy || 0}%
 							</div>
 							<p className="text-sm text-gray-600 mt-1">
-								{correctPredictions}/{totalPredictions} pronostics corrects
+								{aggregatedStats?.correct_predictions || 0}/
+								{aggregatedStats?.total_predictions || 0} pronostics corrects
 							</p>
 						</div>
 
@@ -120,8 +126,51 @@ export function Profile({ onBack }: ProfileProps) {
 							<div className="text-4xl" style={{ fontWeight: 700 }}>
 								{userGroups.length}
 							</div>
+							<p className="text-sm text-gray-600 mt-1">Groupes rejoints</p>
 						</div>
 					</div>
+
+					{/* Scores par groupe */}
+					{aggregatedStats?.group_scores &&
+						aggregatedStats.group_scores.length > 0 && (
+							<div className="mb-8 sm:mb-12">
+								<h2 className="mb-6">Points par groupe</h2>
+								<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+									{aggregatedStats.group_scores.map((groupScore) => (
+										<div
+											key={groupScore.group_id}
+											className="bg-white border border-[#E5E4E1] p-6"
+										>
+											<h4 className="mb-3">{groupScore.group_name}</h4>
+											<div className="space-y-2">
+												<div className="flex justify-between">
+													<span className="text-gray-600">Points</span>
+													<span style={{ fontWeight: 700 }}>
+														{groupScore.score}
+													</span>
+												</div>
+												<div className="flex justify-between">
+													<span className="text-gray-600">
+														Taux de précision
+													</span>
+													<span style={{ fontWeight: 700 }}>
+														{groupScore.accuracy}%
+													</span>
+												</div>
+												<div className="flex justify-between">
+													<span className="text-gray-600">
+														Prédictions correctes
+													</span>
+													<span style={{ fontWeight: 700 }}>
+														{groupScore.correct_predictions}
+													</span>
+												</div>
+											</div>
+										</div>
+									))}
+								</div>
+							</div>
+						)}
 
 					{/* Mes groupes */}
 					<div className="mb-8 sm:mb-12">

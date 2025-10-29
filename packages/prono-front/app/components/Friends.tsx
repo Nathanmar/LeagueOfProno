@@ -57,17 +57,29 @@ export function Friends({ onBack }: FriendsProps) {
 			if (!user) return;
 			try {
 				setLoading(true);
+				console.log("[Friends] Loading data for user:", user.id);
+
 				const [friendsRes, requestsRes] = await Promise.all([
 					getFriends(),
 					getFriendRequests(),
 				]);
 
+				console.log("[Friends] Friends response:", friendsRes);
+				console.log("[Friends] Requests response:", requestsRes);
+
 				if (!friendsRes.error) {
+					console.log("[Friends] Setting friends:", friendsRes.friends);
 					setFriends(friendsRes.friends);
 				}
 
 				if (!requestsRes.error) {
+					console.log(
+						"[Friends] Setting friend requests:",
+						requestsRes.requests,
+					);
 					setFriendRequests(requestsRes.requests);
+				} else {
+					console.error("[Friends] Error loading requests:", requestsRes.error);
 				}
 			} catch (error) {
 				console.error("Erreur lors du chargement des amis:", error);
@@ -173,14 +185,14 @@ export function Friends({ onBack }: FriendsProps) {
 				</div>
 			) : (
 				<Tabs defaultValue="friends" className="w-full">
-					<TabsList className="grid w-full grid-cols-3 sm:grid-cols-4 mb-8 bg-[#F5F4F1] border border-[#E5E4E1]">
+					<TabsList className="grid w-full grid-cols-3 mb-8 bg-[#F5F4F1] border border-[#E5E4E1]">
 						<TabsTrigger
 							value="friends"
 							className="data-[state=active]:bg-[#548CB4] data-[state=active]:text-white text-xs sm:text-sm"
 						>
 							<Users className="w-4 h-4 sm:mr-2" />
 							<span className="hidden sm:inline">Amis ({friends.length})</span>
-							<span className="sm:hidden ml-1">{friends.length}</span>
+							<span className="sm:hidden">{friends.length}</span>
 						</TabsTrigger>
 						<TabsTrigger
 							value="requests"
@@ -190,7 +202,7 @@ export function Friends({ onBack }: FriendsProps) {
 							<span className="hidden sm:inline">
 								Demandes ({friendRequests.length})
 							</span>
-							<span className="sm:hidden ml-1">{friendRequests.length}</span>
+							<span className="sm:hidden">{friendRequests.length}</span>
 						</TabsTrigger>
 						<TabsTrigger
 							value="add"
@@ -198,7 +210,7 @@ export function Friends({ onBack }: FriendsProps) {
 						>
 							<UserPlus className="w-4 h-4 sm:mr-2" />
 							<span className="hidden sm:inline">Ajouter</span>
-							<span className="sm:hidden ml-1">+</span>
+							<span className="sm:hidden">+</span>
 						</TabsTrigger>
 					</TabsList>
 

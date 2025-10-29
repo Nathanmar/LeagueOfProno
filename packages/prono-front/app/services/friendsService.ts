@@ -45,19 +45,33 @@ export async function getFriends(): Promise<{ friends: Friend[]; error: string |
  * Récupère les demandes d'ami reçues
  */
 export async function getFriendRequests(): Promise<{ requests: FriendRequest[]; error: string | null }> {
-  const response = await apiClient.get<{ requests: FriendRequest[] }>("/api/friend-requests");
+  try {
+    const response = await apiClient.get<{ requests: FriendRequest[] }>("/api/friend-requests");
 
-  if (response.error || response.status !== 200) {
+    console.log("[getFriendRequests] Response:", response);
+
+    if (response.error || response.status !== 200) {
+      console.error("[getFriendRequests] Error:", response.error, "Status:", response.status);
+      return {
+        requests: [],
+        error: response.error || "Erreur lors du chargement des demandes",
+      };
+    }
+
+    const requests = response.data?.requests || [];
+    console.log("[getFriendRequests] Requests loaded:", requests);
+
+    return {
+      requests,
+      error: null,
+    };
+  } catch (error) {
+    console.error("[getFriendRequests] Exception:", error);
     return {
       requests: [],
-      error: response.error || "Erreur lors du chargement des demandes",
+      error: "Erreur lors du chargement des demandes",
     };
   }
-
-  return {
-    requests: response.data?.requests || [],
-    error: null,
-  };
 }
 
 /**
