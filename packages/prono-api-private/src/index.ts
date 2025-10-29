@@ -30,6 +30,7 @@ app.use(
     credentials: true,
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization"],
+    exposeHeaders: ["Set-Cookie"],
   })
 );
 
@@ -419,16 +420,29 @@ app.get("/api/groups", async (c) => {
       },
     });
 
-    const groups = userGroups.map((ug: any) => ({
-      id: ug.Group.id,
-      name: ug.Group.name,
-      description: ug.Group.description,
-      invite_code: ug.Group.invite_code,
-      created_by: ug.Group.created_by_id,
-      members: ug.Group.UserGroup.map((ugMember: any) => ugMember.user_id),
-      created_at: ug.Group.created_at,
-      score: ug.score,
-    }));
+    const groups = userGroups.map(
+      (ug: {
+        Group: {
+          id: string;
+          name: string;
+          description: string | null;
+          invite_code: string;
+          created_by_id: string;
+          UserGroup: Array<{ user_id: string }>;
+          created_at: Date;
+        };
+        score: number;
+      }) => ({
+        id: ug.Group.id,
+        name: ug.Group.name,
+        description: ug.Group.description,
+        invite_code: ug.Group.invite_code,
+        created_by: ug.Group.created_by_id,
+        members: ug.Group.UserGroup.map((ugMember) => ugMember.user_id),
+        created_at: ug.Group.created_at,
+        score: ug.score,
+      })
+    );
 
     return c.json(
       {
@@ -674,48 +688,356 @@ app.post("/api/groups/:id/join", async (c) => {
 });
 
 app.post("/api/groups/:id/leave", async (c) => {
-  const user = c.get("user") as User | null;
-  const groupId = c.req.param("id");
+	const user = c.get("user") as User | null;
+	const groupId = c.req.param("id");
 
-  if (!user) {
-    return c.json({ error: "Not authenticated" }, { status: 401 });
-  }
+	if (!user) {
+		return c.json({ error: "Not authenticated" }, { status: 401 });
+	}
 
-  try {
-    // Vérifier que l'utilisateur est membre du groupe
-    const userGroupEntry = await prisma.userGroup.findFirst({
-      where: {
-        user_id: user.id,
-        group_id: groupId,
-      },
-    });
+	try {
+		// Vérifier que l'utilisateur est membre du groupe
+		const userGroupEntry = await prisma.userGroup.findFirst({
+			where: {
+				user_id: user.id,
+				group_id: groupId,
+			},
+		});
 
-    if (!userGroupEntry) {
-      return c.json({ error: "User is not a member of this group" }, { status: 404 });
-    }
+		if (!userGroupEntry) {
+			return c.json({ error: "User is not a member of this group" }, { status: 404 });
+		}
 
-    // Supprimer l'utilisateur du groupe
-    await prisma.userGroup.delete({
-      where: {
-        user_id_group_id: {
-          user_id: user.id,
-          group_id: groupId,
-        },
-      },
-    });
+		// Supprimer l'utilisateur du groupe
+		await prisma.userGroup.delete({
+			where: {
+				user_id_group_id: {
+					user_id: user.id,
+					group_id: groupId,
+				},
+			},
+		});
 
-    return c.json({
-      message: "Successfully left group",
-      userId: user.id,
-      groupId,
-    });
-  } catch (error) {
-    console.error("Error leaving group:", error);
-    return c.json(
-      { error: "Failed to leave group", details: error instanceof Error ? error.message : String(error) },
-      { status: 500 }
-    );
-  }
+		return c.json({
+			message: "Successfully left group",
+			userId: user.id,
+			groupId,
+		});
+	} catch (error) {
+		console.error("Error leaving group:", error);
+		return c.json(
+			{ error: "Failed to leave group", details: error instanceof Error ? error.message : String(error) },
+			{ status: 500 }
+		);
+	}
+});
+
+// Routes Prédictions des groupes
+app.get("/api/groups/:id/predictions", async (c) => {
+	const user = c.get("user") as User | null;
+	const groupId = c.req.param("id");
+
+	if (!user) {
+		return c.json({ error: "Not authenticated" }, { status: 401 });
+	}
+
+	try {
+		// Vérifier que l'utilisateur est membre du groupe
+		const isMember = await prisma.userGroup.findFirst({
+			where: {
+				user_id: user.id,
+				group_id: groupId,
+			},
+		});
+
+		if (!isMember) {
+			return c.json({ error: "You are not a member of this group" }, { status: 403 });
+		}
+
+		// Récupérer toutes les prédictions du groupe
+		const predictions = await prisma.prediction.findMany({
+			where: { group_id: groupId },
+			include: {
+				User: true,
+				Match: true,
+			},
+		});
+
+		return c.json({
+			predictions: predictions.map(
+				(p: {
+					id: string;
+					match_id: string;
+					user_id: string;
+					group_id: string;
+					predicted_winner: string | null;
+					predicted_score_a: number | null;
+					predicted_score_b: number | null;
+					is_correct: boolean | null;
+					is_exact_score: boolean | null;
+					points_earned: number;
+					User: { username: string } | null;
+				}) => ({
+					id: p.id,
+					match_id: p.match_id,
+					user_id: p.user_id,
+					user_name: p.User?.username || "Unknown",
+					group_id: p.group_id,
+					prediction: "",
+					predicted_winner: p.predicted_winner,
+					predicted_score_a: p.predicted_score_a,
+					predicted_score_b: p.predicted_score_b,
+					is_correct: p.is_correct,
+					is_exact_score: p.is_exact_score,
+					points_earned: p.points_earned,
+				})
+			),
+			groupId,
+		});
+	} catch (error) {
+		console.error("Error fetching group predictions:", error);
+		return c.json(
+			{ error: "Failed to fetch predictions", details: error instanceof Error ? error.message : String(error) },
+			{ status: 500 }
+		);
+	}
+});
+
+app.get("/api/groups/:id/matches/:matchId/predictions", async (c) => {
+	const user = c.get("user") as User | null;
+	const groupId = c.req.param("id");
+	const matchId = c.req.param("matchId");
+
+	if (!user) {
+		return c.json({ error: "Not authenticated" }, { status: 401 });
+	}
+
+	try {
+		// Vérifier que l'utilisateur est membre du groupe
+		const isMember = await prisma.userGroup.findFirst({
+			where: {
+				user_id: user.id,
+				group_id: groupId,
+			},
+		});
+
+		if (!isMember) {
+			return c.json({ error: "You are not a member of this group" }, { status: 403 });
+		}
+
+		// Récupérer les prédictions du match pour ce groupe
+		const predictions = await prisma.prediction.findMany({
+			where: {
+				group_id: groupId,
+				match_id: matchId,
+			},
+			include: {
+				User: true,
+				Match: true,
+			},
+		});
+
+		return c.json({
+			predictions: predictions.map(
+				(p: {
+					id: string;
+					match_id: string;
+					user_id: string;
+					group_id: string;
+					predicted_winner: string | null;
+					predicted_score_a: number | null;
+					predicted_score_b: number | null;
+					is_correct: boolean | null;
+					is_exact_score: boolean | null;
+					points_earned: number;
+				}) => ({
+					id: p.id,
+					match_id: p.match_id,
+					user_id: p.user_id,
+					group_id: p.group_id,
+					prediction: "",
+					predicted_winner: p.predicted_winner,
+					predicted_score_a: p.predicted_score_a,
+					predicted_score_b: p.predicted_score_b,
+					is_correct: p.is_correct,
+				is_exact_score: p.is_exact_score,
+				points_earned: p.points_earned,
+			})),
+			groupId,
+			matchId,
+		});
+	} catch (error) {
+		console.error("Error fetching match predictions:", error);
+		return c.json(
+			{ error: "Failed to fetch predictions", details: error instanceof Error ? error.message : String(error) },
+			{ status: 500 }
+		);
+	}
+});
+
+app.post("/api/groups/:id/matches/:matchId/predict", async (c) => {
+	const user = c.get("user") as User | null;
+	const groupId = c.req.param("id");
+	const matchId = c.req.param("matchId");
+
+	if (!user) {
+		return c.json({ error: "Not authenticated" }, { status: 401 });
+	}
+
+	try {
+		// Vérifier que l'utilisateur est membre du groupe
+		const isMember = await prisma.userGroup.findFirst({
+			where: {
+				user_id: user.id,
+				group_id: groupId,
+			},
+		});
+
+		if (!isMember) {
+			return c.json({ error: "You are not a member of this group" }, { status: 403 });
+		}
+
+		const body = await c.req.json();
+		const { predicted_winner, predicted_score_a, predicted_score_b } = body as {
+			predicted_winner?: string;
+			predicted_score_a?: number;
+			predicted_score_b?: number;
+		};
+
+		if (!predicted_winner) {
+			return c.json({ error: "Predicted winner is required" }, { status: 400 });
+		}
+
+		// Vérifier que le match existe dans la base de données
+		let match = await prisma.match.findUnique({
+			where: { id: matchId },
+		});
+
+		// Si le match n'existe pas, le créer avec des données minimales
+		if (!match) {
+			console.log(`[PREDICTION] Match ${matchId} not found, creating it...`);
+			
+			// Récupérer le match de l'API publique pour les détails
+			const publicApiUrl = process.env.PUBLIC_API_URL || "http://localhost:3000";
+			const publicResponse = await fetch(`${publicApiUrl}/matches/${matchId}`);
+			const publicMatchData = publicResponse.ok ? await publicResponse.json() : null;
+
+			// Créer ou récupérer les équipes
+			const teamAName = publicMatchData?.team_a || "Team A";
+			const teamBName = publicMatchData?.team_b || "Team B";
+
+			let teamA = await prisma.team.findFirst({
+				where: { name: teamAName },
+			});
+			if (!teamA) {
+				teamA = await prisma.team.create({
+					data: {
+						id: uuidv4(),
+						name: teamAName,
+					},
+				});
+			}
+
+			let teamB = await prisma.team.findFirst({
+				where: { name: teamBName },
+			});
+			if (!teamB) {
+				teamB = await prisma.team.create({
+					data: {
+						id: uuidv4(),
+						name: teamBName,
+					},
+				});
+			}
+
+			// Créer le match
+			const matchTime = new Date(publicMatchData?.match_date || publicMatchData?.scheduled_at || new Date());
+			match = await prisma.match.create({
+				data: {
+					id: matchId,
+					team_a_id: teamA.id,
+					team_b_id: teamB.id,
+					match_time: matchTime,
+					status: (publicMatchData?.status as "upcoming" | "live" | "finished" | "cancelled") || "upcoming",
+				},
+			});
+			console.log("[PREDICTION] Match", matchId, "created successfully");
+		}
+
+		// Vérifier s'il existe déjà une prédiction
+		const existingPrediction = await prisma.prediction.findFirst({
+			where: {
+				user_id: user.id,
+				match_id: matchId,
+				group_id: groupId,
+			},
+		});
+
+		let prediction: {
+			id: string;
+			match_id: string;
+			user_id: string;
+			group_id: string;
+			predicted_winner: string | null;
+			predicted_score_a: number | null;
+			predicted_score_b: number | null;
+			is_correct: boolean | null;
+			is_exact_score: boolean | null;
+			points_earned: number;
+			created_at: Date;
+			updated_at: Date;
+		};
+		if (existingPrediction) {
+			// Mettre à jour la prédiction existante
+			prediction = await prisma.prediction.update({
+				where: { id: existingPrediction.id },
+				data: {
+					predicted_winner,
+					predicted_score_a: predicted_score_a || null,
+					predicted_score_b: predicted_score_b || null,
+					updated_at: new Date(),
+				},
+			});
+		} else {
+			// Créer une nouvelle prédiction
+			prediction = await prisma.prediction.create({
+				data: {
+					id: uuidv4(),
+					user_id: user.id,
+					match_id: matchId,
+					group_id: groupId,
+					predicted_winner,
+					predicted_score_a: predicted_score_a || null,
+					predicted_score_b: predicted_score_b || null,
+				},
+			});
+		}
+
+		return c.json(
+			{
+				prediction: {
+					id: prediction.id,
+					match_id: prediction.match_id,
+					user_id: prediction.user_id,
+					group_id: prediction.group_id,
+					prediction: "",
+					predicted_winner: prediction.predicted_winner,
+					predicted_score_a: prediction.predicted_score_a,
+					predicted_score_b: prediction.predicted_score_b,
+					is_correct: prediction.is_correct,
+					is_exact_score: prediction.is_exact_score,
+					points_earned: prediction.points_earned,
+				},
+			},
+			{ status: 201 }
+		);
+	} catch (error) {
+		console.error("Error saving prediction:", error);
+		return c.json(
+			{ error: "Failed to save prediction", details: error instanceof Error ? error.message : String(error) },
+			{ status: 500 }
+		);
+	}
 });
 
 // Routes Badges
@@ -727,8 +1049,19 @@ app.get("/api/badges", async (c) => {
   }
 
   try {
-    // Récupérer les badges de l'utilisateur
-    const userBadges = user.badges ? JSON.parse(user.badges as string) : [];
+    // Récupérer l'utilisateur depuis Prisma pour avoir les données complètes
+    const userProfile = await prisma.user.findUnique({
+      where: { id: user.id },
+    });
+
+    if (!userProfile) {
+      return c.json({ error: "User not found" }, { status: 404 });
+    }
+
+    // Récupérer les badges de l'utilisateur (parsé du JSON stocké)
+    const userBadges = userProfile.badges
+      ? JSON.parse(userProfile.badges as string)
+      : [];
 
     return c.json({
       badges: userBadges,
@@ -797,17 +1130,33 @@ app.get("/api/friends", async (c) => {
     });
 
     // Mapper les résultats pour retourner les amis (pas l'utilisateur lui-même)
-    const friends = friendRequests.map((fr: any) => {
-      const friend = fr.requester_id === user.id 
-        ? fr.User_FriendRequest_receiver_idToUser 
-        : fr.User_FriendRequest_requester_idToUser;
-      return {
-        id: friend.id,
-        username: friend.username,
-        avatar: friend.avatar_url,
-        score: friend.total_points || 0,
-      };
-    });
+    const friends = friendRequests.map(
+      (fr: {
+        requester_id: string;
+        User_FriendRequest_receiver_idToUser: {
+          id: string;
+          username: string;
+          avatar_url: string | null;
+          total_points: number;
+        };
+        User_FriendRequest_requester_idToUser: {
+          id: string;
+          username: string;
+          avatar_url: string | null;
+          total_points: number;
+        };
+      }) => {
+        const friend = fr.requester_id === user.id
+          ? fr.User_FriendRequest_receiver_idToUser
+          : fr.User_FriendRequest_requester_idToUser;
+        return {
+          id: friend.id,
+          username: friend.username,
+          avatar: friend.avatar_url,
+          score: friend.total_points || 0,
+        };
+      }
+    );
 
     return c.json({
       friends,
@@ -821,7 +1170,8 @@ app.get("/api/friends", async (c) => {
   }
 });
 
-app.post("/api/friends", async (c) => {
+// Route pour envoyer une demande d'ami par email
+app.post("/api/friend-requests", async (c) => {
   const user = c.get("user") as User | null;
 
   if (!user) {
@@ -830,25 +1180,196 @@ app.post("/api/friends", async (c) => {
 
   try {
     const body = await c.req.json();
-    const { username } = body as { username?: string };
+    const { email } = body as { email?: string };
 
-    if (!username) {
-      return c.json({ error: "Username is required" }, { status: 400 });
+    if (!email) {
+      return c.json({ error: "Email is required" }, { status: 400 });
     }
 
-    // Ajouter un ami
-    // À implémenter avec Prisma
-    const friend = {
-      id: uuidv4(),
-      username,
-      score: 0,
-    };
+    // Chercher l'utilisateur par email
+    const targetUser = await prisma.user.findUnique({
+      where: { email },
+    });
 
-    return c.json(friend, { status: 201 });
+    if (!targetUser) {
+      return c.json({ error: "User not found" }, { status: 404 });
+    }
+
+    if (targetUser.id === user.id) {
+      return c.json({ error: "Cannot add yourself as a friend" }, { status: 400 });
+    }
+
+    // Vérifier si une demande existe déjà
+    const existingRequest = await prisma.friendRequest.findFirst({
+      where: {
+        OR: [
+          { requester_id: user.id, receiver_id: targetUser.id },
+          { requester_id: targetUser.id, receiver_id: user.id },
+        ],
+      },
+    });
+
+    if (existingRequest) {
+      return c.json(
+        { error: "Friend request already exists" },
+        { status: 400 }
+      );
+    }
+
+    // Créer la demande d'ami
+    await prisma.friendRequest.create({
+      data: {
+        id: uuidv4(),
+        requester_id: user.id,
+        receiver_id: targetUser.id,
+        status: "pending",
+      },
+    });
+
+    return c.json({
+      message: "Friend request sent",
+    });
   } catch (error) {
-    console.error("Error adding friend:", error);
+    console.error("Error sending friend request:", error);
     return c.json(
-      { error: "Failed to add friend" },
+      { error: "Failed to send friend request" },
+      { status: 500 }
+    );
+  }
+});
+
+// Route pour récupérer les demandes d'ami reçues
+app.get("/api/friend-requests", async (c) => {
+  const user = c.get("user") as User | null;
+
+  if (!user) {
+    return c.json({ error: "Not authenticated" }, { status: 401 });
+  }
+
+  try {
+    // Récupérer les demandes d'ami reçues
+    const friendRequests = await prisma.friendRequest.findMany({
+      where: {
+        receiver_id: user.id,
+        status: "pending",
+      },
+      include: {
+        User_FriendRequest_requester_idToUser: true,
+      },
+    });
+
+    const requests = friendRequests.map(
+      (fr: {
+        id: string;
+        status: "pending" | "accepted" | "rejected" | "blocked";
+        created_at: Date;
+        User_FriendRequest_requester_idToUser: {
+          id: string;
+          username: string;
+        };
+      }) => ({
+        id: fr.id,
+        from_user_id: fr.User_FriendRequest_requester_idToUser.id,
+        from_username: fr.User_FriendRequest_requester_idToUser.username,
+        status: fr.status,
+        created_at: fr.created_at.toISOString(),
+      })
+    );
+
+    return c.json({
+      requests,
+    });
+  } catch (error) {
+    console.error("Error fetching friend requests:", error);
+    return c.json(
+      { error: "Failed to fetch friend requests" },
+      { status: 500 }
+    );
+  }
+});
+
+// Route pour accepter une demande d'ami
+app.post("/api/friend-requests/:requestId/accept", async (c) => {
+  const user = c.get("user") as User | null;
+  const requestId = c.req.param("requestId");
+
+  if (!user) {
+    return c.json({ error: "Not authenticated" }, { status: 401 });
+  }
+
+  try {
+    // Chercher la demande
+    const friendRequest = await prisma.friendRequest.findUnique({
+      where: { id: requestId },
+    });
+
+    if (!friendRequest) {
+      return c.json({ error: "Friend request not found" }, { status: 404 });
+    }
+
+    if (friendRequest.receiver_id !== user.id) {
+      return c.json(
+        { error: "You can only accept your own friend requests" },
+        { status: 403 }
+      );
+    }
+
+    // Mettre à jour le statut
+    await prisma.friendRequest.update({
+      where: { id: requestId },
+      data: { status: "accepted" },
+    });
+
+    return c.json({
+      message: "Friend request accepted",
+    });
+  } catch (error) {
+    console.error("Error accepting friend request:", error);
+    return c.json(
+      { error: "Failed to accept friend request" },
+      { status: 500 }
+    );
+  }
+});
+
+// Route pour refuser une demande d'ami
+app.post("/api/friend-requests/:requestId/reject", async (c) => {
+  const user = c.get("user") as User | null;
+  const requestId = c.req.param("requestId");
+
+  if (!user) {
+    return c.json({ error: "Not authenticated" }, { status: 401 });
+  }
+
+  try {
+    // Chercher la demande
+    const friendRequest = await prisma.friendRequest.findUnique({
+      where: { id: requestId },
+    });
+
+    if (!friendRequest) {
+      return c.json({ error: "Friend request not found" }, { status: 404 });
+    }
+
+    if (friendRequest.receiver_id !== user.id) {
+      return c.json(
+        { error: "You can only reject your own friend requests" },
+        { status: 403 }
+      );
+    }
+
+    // Supprimer la demande
+    await prisma.friendRequest.delete({
+      where: { id: requestId },
+    });
+
+    return c.json({
+      message: "Friend request rejected",
+    });
+  } catch (error) {
+    console.error("Error rejecting friend request:", error);
+    return c.json(
+      { error: "Failed to reject friend request" },
       { status: 500 }
     );
   }
@@ -863,8 +1384,24 @@ app.delete("/api/friends/:id", async (c) => {
   }
 
   try {
-    // Supprimer un ami
-    // À implémenter avec Prisma
+    // Supprimer une amitié (demande acceptée)
+    const friendRequest = await prisma.friendRequest.findFirst({
+      where: {
+        OR: [
+          { requester_id: user.id, receiver_id: friendId, status: "accepted" },
+          { requester_id: friendId, receiver_id: user.id, status: "accepted" },
+        ],
+      },
+    });
+
+    if (!friendRequest) {
+      return c.json({ error: "Friend not found" }, { status: 404 });
+    }
+
+    // Supprimer la demande d'ami
+    await prisma.friendRequest.delete({
+      where: { id: friendRequest.id },
+    });
 
     return c.json({ message: "Friend removed" });
   } catch (error) {
@@ -885,6 +1422,15 @@ app.get("/api/profile", async (c) => {
   }
 
   try {
+    // Récupérer les infos complètes de l'utilisateur depuis Prisma
+    const userProfile = await prisma.user.findUnique({
+      where: { id: user.id },
+    });
+
+    if (!userProfile) {
+      return c.json({ error: "User not found" }, { status: 404 });
+    }
+
     // Récupérer les stats de l'utilisateur
     const userGroups = await prisma.userGroup.count({
       where: { user_id: user.id },
@@ -899,14 +1445,27 @@ app.get("/api/profile", async (c) => {
       },
     });
 
+    // Compter les prédictions totales
+    const totalPredictions = await prisma.prediction.count({
+      where: { user_id: user.id },
+    });
+
+    // Compter les prédictions correctes
+    const correctPredictions = await prisma.prediction.count({
+      where: {
+        user_id: user.id,
+        is_correct: true,
+      },
+    });
+
     const profile = {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      avatar: user.avatar_url,
-      score: user.total_points || 0,
-      predictions_count: 0, // À implémenter si nécessaire
-      wins_count: 0, // À implémenter si nécessaire
+      id: userProfile.id,
+      username: userProfile.username,
+      email: userProfile.email,
+      avatar: userProfile.avatar_url,
+      score: userProfile.total_points || 0,
+      predictions_count: totalPredictions,
+      wins_count: correctPredictions,
       groups_count: userGroups,
       friends_count: acceptedFriends,
     };
@@ -926,6 +1485,201 @@ app.get("/api/profile", async (c) => {
 // Erreur 404
 app.notFound((c) => {
   return c.json({ error: "Not Found" }, { status: 404 });
+});
+
+// Route pour calculer les points d'un match terminé
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+app.post("/api/matches/:matchId/calculate-points", async (c) => {
+	const user = c.get("user") as User | null;
+	const matchId = c.req.param("matchId");
+
+	if (!user) {
+		return c.json({ error: "Not authenticated" }, { status: 401 });
+	}
+
+	try {
+		// Récupérer d'abord les données du match de l'API publique
+		const publicApiUrl = process.env.PUBLIC_API_URL || "http://localhost:3000";
+		const publicResponse = await fetch(`${publicApiUrl}/matches/${matchId}`);
+		const publicMatchData = publicResponse.ok ? await publicResponse.json() : null;
+
+		console.log("[POINTS] Public API match data:", publicMatchData);
+
+		// Récupérer le match de la BD locale
+		let match = await prisma.match.findUnique({
+			where: { id: matchId },
+			include: {
+				Team_Match_team_a_idToTeam: true,
+				Team_Match_team_b_idToTeam: true,
+			},
+		});
+
+		if (!match) {
+			return c.json({ error: "Match not found" }, { status: 404 });
+		}
+
+		// Mettre à jour le match avec les données de l'API publique si disponibles
+		if (publicMatchData) {
+			match = await prisma.match.update({
+				where: { id: matchId },
+				data: {
+					status: (publicMatchData.status as "upcoming" | "live" | "finished" | "cancelled") || match.status,
+					result_score_a: publicMatchData.score_a ?? match.result_score_a,
+					result_score_b: publicMatchData.score_b ?? match.result_score_b,
+				},
+				include: {
+					Team_Match_team_a_idToTeam: true,
+					Team_Match_team_b_idToTeam: true,
+				},
+			});
+			console.log("[POINTS] Match updated:", matchId, ", new status:", match.status);
+		}
+
+		// Vérifier que le match est maintenant "finished"
+		if (match.status !== "finished") {
+			return c.json(
+				{ error: "Match is not finished", status: match.status },
+				{ status: 400 }
+			);
+		}
+
+		// Récupérer toutes les prédictions pour ce match
+		const predictions = await prisma.prediction.findMany({
+			where: { match_id: matchId },
+		});
+
+		// Calculer les points pour chaque prédiction
+		let updatedCount = 0;
+		for (const prediction of predictions) {
+			const result_score_a = match.result_score_a || 0;
+			const result_score_b = match.result_score_b || 0;
+			const actualWinner =
+				result_score_a > result_score_b
+					? "team_a"
+					: result_score_a < result_score_b
+						? "team_b"
+						: null;
+
+			// Vérifier si la prédiction du gagnant est correcte
+			const isCorrect = prediction.predicted_winner === actualWinner;
+
+			// Vérifier si le score exact est correcte
+			const isExactScore =
+				isCorrect &&
+				prediction.predicted_score_a === result_score_a &&
+				prediction.predicted_score_b === result_score_b;
+
+			// Calculer les points
+			let points = 0;
+			if (isCorrect) {
+				points = 3; // 3 points pour le gagnant correct
+				if (isExactScore) {
+					points += 2; // 2 points bonus pour le score exact
+				}
+			}
+
+			// Mettre à jour la prédiction avec les résultats et points
+			await prisma.prediction.update({
+				where: { id: prediction.id },
+				data: {
+					is_correct: isCorrect,
+					is_exact_score: isExactScore,
+					points_earned: points,
+					updated_at: new Date(),
+				},
+			});
+
+			updatedCount += 1;
+		}
+
+		return c.json({
+			message: "Points calculated successfully",
+			match_id: matchId,
+			predictions_updated: updatedCount,
+		});
+	} catch (error) {
+		console.error("Error calculating points:", error);
+		return c.json(
+			{
+				error: "Failed to calculate points",
+				details: error instanceof Error ? error.message : String(error),
+			},
+			{ status: 500 }
+		);
+	}
+});
+
+// Route pour récupérer les points de l'utilisateur dans un groupe
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+app.get("/api/groups/:id/user-stats", async (c) => {
+	const user = c.get("user") as User | null;
+	const groupId = c.req.param("id");
+
+	if (!user) {
+		return c.json({ error: "Not authenticated" }, { status: 401 });
+	}
+
+	try {
+		// Vérifier que l'utilisateur est membre du groupe
+		const isMember = await prisma.userGroup.findFirst({
+			where: {
+				user_id: user.id,
+				group_id: groupId,
+			},
+		});
+
+		if (!isMember) {
+			return c.json({ error: "You are not a member of this group" }, { status: 403 });
+		}
+
+		// Récupérer les prédictions de l'utilisateur pour ce groupe
+		const predictions = await prisma.prediction.findMany({
+			where: {
+				user_id: user.id,
+				group_id: groupId,
+			},
+		});
+
+		// Calculer les statistiques
+		let totalPoints = 0;
+		let correctPredictions = 0;
+		let exactScores = 0;
+		for (const p of predictions) {
+			totalPoints += p.points_earned || 0;
+			if (p.is_correct) correctPredictions += 1;
+			if (p.is_exact_score) exactScores += 1;
+		}
+		const totalPredictions = predictions.length;
+
+		// Mettre à jour le score dans UserGroup
+		await prisma.userGroup.update({
+			where: {
+				user_id_group_id: {
+					user_id: user.id,
+					group_id: groupId,
+				},
+			},
+			data: {
+				score: totalPoints,
+			},
+		});
+
+		return c.json({
+			user_id: user.id,
+			group_id: groupId,
+			total_points: totalPoints,
+			correct_predictions: correctPredictions,
+			total_predictions: totalPredictions,
+			exact_scores: exactScores,
+			accuracy: totalPredictions > 0 ? Math.round((correctPredictions / totalPredictions) * 100) : 0,
+		});
+	} catch (error) {
+		console.error("Error fetching user stats:", error);
+		return c.json(
+			{ error: "Failed to fetch user stats", details: error instanceof Error ? error.message : String(error) },
+			{ status: 500 }
+		);
+	}
 });
 
 // Gestion des erreurs

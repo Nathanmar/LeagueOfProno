@@ -9,7 +9,7 @@ export interface Match {
   team2: string;
   match_date: string;
   scheduled_at: string;
-  status: "scheduled" | "live" | "finished";
+  status: "scheduled" | "upcoming" | "live" | "finished";
   score_team1?: number;
   score_team2?: number;
   team_a?: string;
@@ -79,5 +79,27 @@ export async function submitPrediction(
 
   return {
     error: null,
+  };
+}
+
+/**
+ * Calcule les points pour les prédictions d'un match terminé
+ */
+export async function calculateMatchPoints(
+  matchId: string
+): Promise<{ error: string | null; updated: number }> {
+  const response = await apiClient.post(`/api/matches/${matchId}/calculate-points`, {});
+
+  if (response.error || response.status !== 200) {
+    return {
+      error: response.error || "Erreur lors du calcul des points",
+      updated: 0,
+    };
+  }
+
+  const data = response.data as Record<string, unknown> | null;
+  return {
+    error: null,
+    updated: (data?.predictions_updated as number) || 0,
   };
 }

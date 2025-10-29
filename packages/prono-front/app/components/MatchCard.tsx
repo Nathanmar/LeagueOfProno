@@ -35,6 +35,7 @@ interface MatchCardProps {
 	match: Match;
 	prediction?: Prediction;
 	onPredict?: () => void;
+	onEditPrediction?: () => void;
 	onViewPredictions?: () => void;
 	groupPredictionsCount?: number;
 }
@@ -43,6 +44,7 @@ export function MatchCard({
 	match,
 	prediction,
 	onPredict,
+	onEditPrediction,
 	onViewPredictions,
 	groupPredictionsCount,
 }: MatchCardProps) {
@@ -119,24 +121,34 @@ export function MatchCard({
 			{isUpcoming || isLive ? (
 				<div className="space-y-3">
 					{prediction ? (
-						<div className="bg-[#F5F4F1] p-3 sm:p-4 border-l-4 border-[#548CB4]">
-							<p className="text-xs sm:text-sm text-gray-700">
-								Votre pronostic :{" "}
-								<span style={{ fontWeight: 600 }}>
-									{prediction.predicted_winner === "team_a"
-										? match.team_a
-										: match.team_b}
-								</span>
-								{prediction.predicted_score_a !== undefined &&
-									prediction.predicted_score_b !== undefined && (
-										<span>
-											{" "}
-											({prediction.predicted_score_a}-
-											{prediction.predicted_score_b})
-										</span>
-									)}
-							</p>
-						</div>
+						<>
+							<div className="bg-[#F5F4F1] p-3 sm:p-4 border-l-4 border-[#548CB4]">
+								<p className="text-xs sm:text-sm text-gray-700">
+									Votre pronostic :{" "}
+									<span style={{ fontWeight: 600 }}>
+										{prediction.predicted_winner === "team_a"
+											? match.team_a
+											: match.team_b}
+									</span>
+									{prediction.predicted_score_a !== undefined &&
+										prediction.predicted_score_b !== undefined && (
+											<span>
+												{" "}
+												({prediction.predicted_score_a}-
+												{prediction.predicted_score_b})
+											</span>
+										)}
+								</p>
+							</div>
+							{!isLive && onEditPrediction && (
+								<Button
+									onClick={onEditPrediction}
+									className="w-full bg-[#C4A15B] hover:bg-[#b39546] text-white"
+								>
+									✏️ Éditer mon pronostic
+								</Button>
+							)}
+						</>
 					) : (
 						!isLive && (
 							<Button
@@ -146,71 +158,114 @@ export function MatchCard({
 								Faire un pronostic
 							</Button>
 						)
+					)}{" "}
+					{/* Bouton pour voir les pronostics du groupe - Pour les matchs LIVE et UPCOMING */}
+					{onViewPredictions && (
+						<Button
+							onClick={onViewPredictions}
+							variant="outline"
+							className="w-full border-[#E5E4E1] hover:bg-[#F5F4F1]"
+						>
+							<Users className="w-4 h-4 mr-2" />
+							Voir les pronostics
+							{groupPredictionsCount !== undefined &&
+								groupPredictionsCount > 0 && (
+									<span className="ml-2">({groupPredictionsCount})</span>
+								)}
+						</Button>
 					)}
-
-					{/* Bouton pour voir les pronostics du groupe */}
-					{onViewPredictions &&
-						groupPredictionsCount !== undefined &&
-						groupPredictionsCount > 0 && (
-							<Button
-								onClick={onViewPredictions}
-								variant="outline"
-								className="w-full border-[#E5E4E1] hover:bg-[#F5F4F1]"
-							>
-								<Users className="w-4 h-4 mr-2" />
-								Voir les pronostics ({groupPredictionsCount})
-							</Button>
-						)}
 				</div>
 			) : (
-				<div className="space-y-3">
+				<div className="space-y-4">
+					{/* Résultat Final */}
 					{match.winner && (
-						<div className="mb-3 text-center">
-							<span className="inline-flex items-center gap-2 bg-[#F5F4F1] px-4 py-2 text-sm">
-								<Trophy className="w-4 h-4 text-[#C4A15B]" />
-								Vainqueur :{" "}
-								{match.winner === "team_a" ? match.team_a : match.team_b}
-							</span>
+						<div className="mb-4 p-4 sm:p-5 bg-linear-to-r from-[#C4A15B]/10 to-[#548CB4]/5 border-2 border-[#C4A15B] rounded-lg">
+							<div className="flex items-center justify-center gap-2 mb-2">
+								<Trophy className="w-5 h-5 text-[#C4A15B]" />
+								<span className="text-xs sm:text-sm font-bold text-gray-800">
+									RÉSULTAT FINAL
+								</span>
+							</div>
+							<p className="text-center text-lg sm:text-xl font-bold text-[#548CB4]">
+								{match.winner === "team_a" ? match.team_a : match.team_b}{" "}
+								<span className="text-gray-400 font-normal text-sm">
+									vainqueur
+								</span>
+							</p>
 						</div>
 					)}
-					{prediction && (
+
+					{/* Votre Pronostic avec Résultat */}
+					{prediction ? (
 						<div
-							className={`p-4 border-l-4 ${
+							className={`p-4 sm:p-5 rounded-lg border-2 transition-all ${
 								prediction.is_correct
-									? "bg-green-50 border-green-500"
-									: "bg-red-50 border-red-500"
+									? "bg-green-50 border-green-400"
+									: "bg-red-50 border-red-400"
 							}`}
 						>
-							<div className="flex items-center justify-between">
-								<div className="text-sm">
-									<p className="text-gray-700">
-										Votre pronostic :{" "}
-										<span style={{ fontWeight: 600 }}>
-											{prediction.predicted_winner === "team_a"
-												? match.team_a
-												: match.team_b}
-										</span>
-										{prediction.predicted_score_a !== undefined &&
-											prediction.predicted_score_b !== undefined && (
-												<span>
-													{" "}
-													({prediction.predicted_score_a}-
-													{prediction.predicted_score_b})
-												</span>
-											)}
-									</p>
+							<div className="flex flex-col gap-3">
+								{/* Statut du pronostic */}
+								<div className="flex items-center gap-2">
+									{prediction.is_correct ? (
+										<div className="flex items-center gap-2 px-3 py-1 bg-green-200 text-green-700 rounded-full text-xs font-semibold">
+											<span>✓</span>
+											<span>Pronostic correct!</span>
+										</div>
+									) : (
+										<div className="flex items-center gap-2 px-3 py-1 bg-red-200 text-red-700 rounded-full text-xs font-semibold">
+											<span>✗</span>
+											<span>Pronostic incorrect</span>
+										</div>
+									)}
 								</div>
-								<div className="text-right">
-									<div style={{ fontWeight: 700 }} className="text-lg">
-										+{prediction.points_earned} pts
-									</div>
+
+								{/* Détails du pronostic */}
+								<div className="text-sm text-gray-700">
+									<span className="block text-xs text-gray-600 mb-1">
+										Vous aviez prédit :
+									</span>
+									<span style={{ fontWeight: 600 }} className="text-base">
+										{prediction.predicted_winner === "team_a"
+											? match.team_a
+											: match.team_b}
+									</span>
+									{prediction.predicted_score_a !== undefined &&
+										prediction.predicted_score_b !== undefined && (
+											<span className="block text-gray-600">
+												({prediction.predicted_score_a}-
+												{prediction.predicted_score_b})
+											</span>
+										)}
 									{prediction.is_exact_score && (
-										<span className="text-xs text-green-600">
-											Score parfait!
+										<span className="block text-green-600 font-semibold mt-1">
+											🎯 Score exact!
 										</span>
 									)}
 								</div>
+
+								{/* Points gagnés */}
+								<div className="border-t pt-3 flex items-center justify-between">
+									<span className="text-xs font-semibold text-gray-600">
+										Points gagnés
+									</span>
+									<span
+										className={`text-2xl sm:text-3xl font-bold ${
+											(prediction.points_earned ?? 0) > 0
+												? "text-green-600"
+												: "text-gray-400"
+										}`}
+									>
+										+{prediction.points_earned ?? 0}
+									</span>
+								</div>
 							</div>
+						</div>
+					) : (
+						<div className="p-4 sm:p-5 bg-gray-50 border-2 border-gray-300 rounded-lg text-center">
+							<p className="text-sm text-gray-600">
+								Vous n'aviez pas fait de pronostic pour ce match.
+							</p>
 						</div>
 					)}
 

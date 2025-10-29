@@ -10,15 +10,23 @@ export interface Friend {
   score: number;
 }
 
+export interface FriendRequest {
+  id: string;
+  from_user_id: string;
+  from_username: string;
+  status: "pending" | "accepted" | "rejected" | "blocked";
+  created_at: string;
+}
+
 export interface FriendsResponse {
   friends: Friend[];
 }
 
 /**
- * Récupère la liste des amis
+ * Récupère la liste des amis acceptés
  */
 export async function getFriends(): Promise<{ friends: Friend[]; error: string | null }> {
-  const response = await apiClient.get<FriendsResponse>("/data/friends");
+  const response = await apiClient.get<FriendsResponse>("/api/friends");
 
   if (response.error || response.status !== 200) {
     return {
@@ -34,20 +42,77 @@ export async function getFriends(): Promise<{ friends: Friend[]; error: string |
 }
 
 /**
- * Ajoute un ami
+ * Récupère les demandes d'ami reçues
  */
-export async function addFriend(username: string): Promise<{ friend: Friend | null; error: string | null }> {
-  const response = await apiClient.post<Friend>("/data/friends", { username });
+export async function getFriendRequests(): Promise<{ requests: FriendRequest[]; error: string | null }> {
+  const response = await apiClient.get<{ requests: FriendRequest[] }>("/api/friend-requests");
 
-  if (response.error || response.status !== 201) {
+  if (response.error || response.status !== 200) {
     return {
-      friend: null,
-      error: response.error || "Erreur lors de l'ajout de l'ami",
+      requests: [],
+      error: response.error || "Erreur lors du chargement des demandes",
     };
   }
 
   return {
-    friend: response.data || null,
+    requests: response.data?.requests || [],
+    error: null,
+  };
+}
+
+/**
+ * Envoie une demande d'ami par email
+ */
+export async function sendFriendRequest(email: string): Promise<{ success: boolean; error: string | null }> {
+  const response = await apiClient.post("/api/friend-requests", { email });
+
+  if (response.error || (response.status !== 200 && response.status !== 201)) {
+    return {
+      success: false,
+      error: response.error || "Erreur lors de l'envoi de la demande",
+    };
+  }
+
+  return {
+    success: true,
+    error: null,
+  };
+}
+
+/**
+ * Accepte une demande d'ami
+ */
+export async function acceptFriendRequest(requestId: string): Promise<{ success: boolean; error: string | null }> {
+  const response = await apiClient.post(`/api/friend-requests/${requestId}/accept`, {});
+
+  if (response.error || response.status !== 200) {
+    return {
+      success: false,
+      error: response.error || "Erreur lors de l'acceptation de la demande",
+    };
+  }
+
+  return {
+    success: true,
+    error: null,
+  };
+}
+
+/**
+ * Refuse une demande d'ami
+ */
+export async function rejectFriendRequest(requestId: string): Promise<{ success: boolean; error: string | null }> {
+  const response = await apiClient.post(`/api/friend-requests/${requestId}/reject`, {});
+
+  if (response.error || response.status !== 200) {
+    return {
+      success: false,
+      error: response.error || "Erreur lors du refus de la demande",
+    };
+  }
+
+  return {
+    success: true,
     error: null,
   };
 }
@@ -56,7 +121,7 @@ export async function addFriend(username: string): Promise<{ friend: Friend | nu
  * Supprime un ami
  */
 export async function removeFriend(friendId: string): Promise<{ error: string | null }> {
-  const response = await apiClient.delete(`/data/friends/${friendId}`);
+  const response = await apiClient.delete(`/api/friends/${friendId}`);
 
   if (response.error || response.status !== 200) {
     return {

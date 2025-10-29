@@ -38,6 +38,10 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
 				setError(new Error(fetchError));
 				setConnected(false);
 			} else {
+				console.log("[REALTIME] Matchs reçus:", fetchedMatches);
+				console.log("[REALTIME] Statuts uniques:", [
+					...new Set(fetchedMatches.map((m: Match) => m.status)),
+				]);
 				setMatches(fetchedMatches);
 				setConnected(true);
 				setError(null);

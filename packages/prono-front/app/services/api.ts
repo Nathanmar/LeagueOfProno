@@ -22,8 +22,10 @@ export class ApiClient {
     "Content-Type": "application/json",
   };
 
-  constructor(baseUrl: string = import.meta.env.VITE_PRIVATE_API_URL || "http://localhost:3001") {
-    this.baseUrl = baseUrl;
+  constructor(baseUrl: string = import.meta.env.VITE_PRIVATE_API_URL || "") {
+    // En développement, utiliser l'URL relative pour utiliser le proxy Vite
+    // En production, utiliser l'URL complète fournie par la variable d'environnement
+    this.baseUrl = baseUrl || "";
   }
 
   /**

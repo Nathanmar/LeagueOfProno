@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
 	Dialog,
 	DialogContent,
@@ -27,6 +27,19 @@ interface Match {
 	status?: string;
 }
 
+interface Prediction {
+	id: string;
+	match_id: string;
+	user_id: string;
+	prediction: string;
+	predicted_winner?: string;
+	predicted_score_a?: number;
+	predicted_score_b?: number;
+	is_correct?: boolean;
+	is_exact_score?: boolean;
+	points_earned?: number;
+}
+
 interface PredictionModalProps {
 	match: Match | null;
 	groupId: string;
@@ -39,6 +52,7 @@ interface PredictionModalProps {
 		predictedScoreA?: number;
 		predictedScoreB?: number;
 	}) => void;
+	existingPrediction?: Prediction;
 }
 
 export function PredictionModal({
@@ -47,12 +61,28 @@ export function PredictionModal({
 	isOpen,
 	onClose,
 	onSubmit,
+	existingPrediction,
 }: PredictionModalProps) {
 	const [selectedWinner, setSelectedWinner] = useState<
 		"team_a" | "team_b" | null
 	>(null);
 	const [scoreA, setScoreA] = useState<string>("");
 	const [scoreB, setScoreB] = useState<string>("");
+
+	// Initialiser avec les données existantes
+	useEffect(() => {
+		if (existingPrediction && isOpen) {
+			setSelectedWinner(
+				(existingPrediction.predicted_winner as "team_a" | "team_b") || null,
+			);
+			setScoreA(existingPrediction.predicted_score_a?.toString() || "");
+			setScoreB(existingPrediction.predicted_score_b?.toString() || "");
+		} else if (isOpen) {
+			setSelectedWinner(null);
+			setScoreA("");
+			setScoreB("");
+		}
+	}, [existingPrediction, isOpen]);
 
 	if (!match) return null;
 
@@ -67,23 +97,26 @@ export function PredictionModal({
 			predictedScoreB: scoreB ? Number.parseInt(scoreB) : undefined,
 		});
 
-		// Reset
+		// Reset - la modale se fermera depuis le parent (GroupView)
 		setSelectedWinner(null);
 		setScoreA("");
 		setScoreB("");
-		onClose();
 	};
 
 	const matchDate = new Date(match.match_date || match.scheduled_at || "");
+	const isEditing = !!existingPrediction;
 
 	return (
 		<Dialog open={isOpen} onOpenChange={onClose}>
 			<DialogContent className="max-w-2xl bg-white border-[#E5E4E1]">
 				<DialogHeader>
-					<DialogTitle>Faire un pronostic</DialogTitle>
+					<DialogTitle>
+						{isEditing ? "Éditer mon pronostic" : "Faire un pronostic"}
+					</DialogTitle>
 					<DialogDescription className="text-gray-600">
-						Prédisez le vainqueur et optionnellement le score exact pour gagner
-						des points bonus
+						{isEditing
+							? "Modifiez votre prédiction avant que le match ne commence"
+							: "Prédisez le vainqueur et optionnellement le score exact pour gagner des points bonus"}
 					</DialogDescription>
 				</DialogHeader>
 
@@ -241,7 +274,6 @@ export function PredictionModal({
 					</div>
 				</div>
 
-				{/* Actions */}
 				<div className="flex gap-3 justify-end">
 					<Button
 						variant="outline"
@@ -255,7 +287,7 @@ export function PredictionModal({
 						disabled={!selectedWinner}
 						className="bg-[#548CB4] hover:bg-[#4a7ca0] text-white disabled:opacity-50"
 					>
-						Valider le pronostic
+						{isEditing ? "Mettre à jour le pronostic" : "Valider le pronostic"}
 					</Button>
 				</div>
 			</DialogContent>

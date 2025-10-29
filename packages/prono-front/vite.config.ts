@@ -20,5 +20,22 @@
     server: {
       port: 5173,
       open: false,
+      proxy: {
+        '/api': {
+          target: 'http://localhost:3001',
+          changeOrigin: true,
+          rewrite: (path: string) => path.replace(/^\/api/, '/api'),
+        },
+        '/auth': {
+          target: 'http://localhost:3001',
+          changeOrigin: true,
+          rewrite: (path: string) => path.replace(/^\/auth/, '/auth'),
+        },
+        '/data': {
+          target: 'http://localhost:3001',
+          changeOrigin: true,
+          rewrite: (path: string) => path.replace(/^\/data/, '/data'),
+        },
+      },
     },
   });

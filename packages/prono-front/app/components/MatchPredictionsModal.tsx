@@ -6,6 +6,7 @@ import {
 	DialogDescription,
 } from "./ui/dialog";
 import { Trophy, Target } from "lucide-react";
+import { useEffect, useState } from "react";
 
 interface Match {
 	id: string;
@@ -39,6 +40,7 @@ interface MatchPredictionsModalProps {
 	predictions: Prediction[];
 	isOpen: boolean;
 	onClose: () => void;
+	groupId?: string;
 }
 
 export function MatchPredictionsModal({
@@ -46,17 +48,27 @@ export function MatchPredictionsModal({
 	predictions,
 	isOpen,
 	onClose,
+	groupId,
 }: MatchPredictionsModalProps) {
+	const [displayPredictions, setDisplayPredictions] =
+		useState<Prediction[]>(predictions);
+
+	// Mettre à jour les prédictions affichées quand les props changent
+	useEffect(() => {
+		setDisplayPredictions(predictions);
+		console.log("[PREDICTIONS_MODAL] Prédictions reçues:", predictions);
+	}, [predictions]);
+
 	if (!match) return null;
 
 	// Compter les pronostics par équipe
-	const teamAPredictions = predictions.filter(
+	const teamAPredictions = displayPredictions.filter(
 		(p) => p.predicted_winner === "team_a",
 	).length;
-	const teamBPredictions = predictions.filter(
+	const teamBPredictions = displayPredictions.filter(
 		(p) => p.predicted_winner === "team_b",
 	).length;
-	const totalPredictions = predictions.length;
+	const totalPredictions = displayPredictions.length;
 
 	const teamAPercentage =
 		totalPredictions > 0
@@ -123,7 +135,7 @@ export function MatchPredictionsModal({
 						<h4 className="mb-4">Détail des pronostics</h4>
 
 						<div className="space-y-2 max-h-96 overflow-y-auto">
-							{predictions.length === 0 ? (
+							{displayPredictions.length === 0 ? (
 								<div className="bg-white border border-[#E5E4E1] p-8 text-center">
 									<Target className="w-8 h-8 mx-auto mb-2 text-gray-400" />
 									<p className="text-gray-600 text-sm">
@@ -131,7 +143,7 @@ export function MatchPredictionsModal({
 									</p>
 								</div>
 							) : (
-								predictions.map((prediction) => {
+								displayPredictions.map((prediction) => {
 									const user = {
 										id: prediction.user_id,
 										username: "Utilisateur",

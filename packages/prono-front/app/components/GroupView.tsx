@@ -3,25 +3,22 @@ import { MatchCard } from "./MatchCard";
 import { Leaderboard } from "./Leaderboard";
 import { PredictionModal } from "./PredictionModal";
 import { MatchPredictionsModal } from "./MatchPredictionsModal";
+import { UserStatsCard } from "./UserStatsCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Button } from "./ui/button";
-import { ArrowLeft, Share2 } from "lucide-react";
+import { ArrowLeft, Share2, TrendingUp, Target } from "lucide-react";
 import { toast } from "sonner";
 import { getGroup } from "../services/groupsService";
-
-interface Match {
-	id: string;
-	team1: string;
-	team2: string;
-	team_a?: string;
-	team_b?: string;
-	score1?: number;
-	score2?: number;
-	score_a?: number;
-	score_b?: number;
-	scheduled_at: string;
-	status?: string;
-}
+import {
+	getGroupPredictions,
+	submitGroupPrediction,
+} from "../services/predictionsService";
+import { useRealtimeMatches } from "../hooks/useRealtimeMatches";
+import { useMatchPointsCalculation } from "../hooks/useMatchPointsCalculation";
+import { useAuth } from "../contexts/AuthContext";
+import { getUserGroupStats } from "../services/userStatsService";
+import type { Match as MatchType } from "../services/matchesService";
+import type { UserStats } from "../services/userStatsService";
 
 interface Group {
 	id: string;
@@ -35,6 +32,7 @@ interface Prediction {
 	id: string;
 	match_id: string;
 	user_id: string;
+	user_name?: string;
 	prediction: string;
 	predicted_winner?: string;
 	predicted_score_a?: number;
@@ -53,18 +51,24 @@ export function GroupView({ groupId, onBack }: GroupViewProps) {
 	const [group, setGroup] = useState<Group | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [predictions, setPredictions] = useState<Prediction[]>([]);
-	const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
+	const [selectedMatch, setSelectedMatch] = useState<MatchType | null>(null);
 	const [isPredictionModalOpen, setIsPredictionModalOpen] = useState(false);
 	const [isMatchPredictionsModalOpen, setIsMatchPredictionsModalOpen] =
 		useState(false);
 	const [selectedMatchForPredictions, setSelectedMatchForPredictions] =
-		useState<Match | null>(null);
+		useState<MatchType | null>(null);
+	const [userStats, setUserStats] = useState<UserStats | null>(null);
+
+	// Utiliser le hook pour récupérer les matchs en temps réel
+	const { matches, loading: matchesLoading } = useRealtimeMatches();
+
+	// Récupérer l'utilisateur connecté
+	const { user } = useAuth();
 
 	// Charger les données du groupe
 	useEffect(() => {
 		const loadGroup = async () => {
 			try {
-				setLoading(true);
 				const { group: groupData, error } = await getGroup(groupId);
 				if (error || !groupData) {
 					console.error("Erreur lors du chargement du groupe:", error);
@@ -83,7 +87,73 @@ export function GroupView({ groupId, onBack }: GroupViewProps) {
 		loadGroup();
 	}, [groupId]);
 
-	if (loading) {
+	// Charger les prédictions du groupe
+	useEffect(() => {
+		const loadPredictions = async () => {
+			try {
+				const { predictions, error } = await getGroupPredictions(groupId);
+				if (error) {
+					console.error("Erreur lors du chargement des prédictions:", error);
+					setPredictions([]);
+				} else {
+					setPredictions(predictions);
+				}
+			} catch (err) {
+				console.error("Erreur lors du chargement des prédictions:", err);
+				setPredictions([]);
+			}
+		};
+
+		if (group) {
+			loadPredictions();
+		}
+	}, [group, groupId]);
+
+	// Charger les statistiques de l'utilisateur
+	useEffect(() => {
+		const loadUserStats = async () => {
+			try {
+				const { stats, error } = await getUserGroupStats(groupId);
+				if (error) {
+					console.error("Erreur lors du chargement des statistiques:", error);
+					setUserStats(null);
+				} else {
+					setUserStats(stats);
+				}
+			} catch (err) {
+				console.error("Erreur lors du chargement des statistiques:", err);
+				setUserStats(null);
+			}
+		};
+
+		if (group && user) {
+			loadUserStats();
+		}
+	}, [group, groupId, user]);
+
+	// Fonction pour recharger les prédictions et statistiques
+	const reloadPredictionsAndStats = async () => {
+		try {
+			const { predictions, error } = await getGroupPredictions(groupId);
+			if (!error) {
+				setPredictions(predictions);
+				console.log("[GROUPVIEW] Prédictions reloadées après calcul de points");
+			}
+
+			const { stats, error: statsError } = await getUserGroupStats(groupId);
+			if (!statsError && stats) {
+				setUserStats(stats);
+				console.log("[GROUPVIEW] Statistiques reloadées");
+			}
+		} catch (err) {
+			console.error("[GROUPVIEW] Erreur lors du rechargement:", err);
+		}
+	};
+
+	// Utiliser le hook avec callback de rechargement
+	useMatchPointsCalculation(matches, reloadPredictionsAndStats);
+
+	if (loading || matchesLoading) {
 		return (
 			<div className="max-w-7xl mx-auto px-6 py-12">
 				<div className="flex items-center justify-center min-h-[500px]">
@@ -105,9 +175,21 @@ export function GroupView({ groupId, onBack }: GroupViewProps) {
 	}
 
 	// Filtrer les matchs par statut
-	const liveMatches: Match[] = [];
-	const upcomingMatches: Match[] = [];
-	const completedMatches: Match[] = [];
+	const liveMatches: MatchType[] = matches.filter((m) => m.status === "live");
+	const upcomingMatches: MatchType[] = matches.filter(
+		(m) => m.status === "scheduled" || m.status === "upcoming",
+	);
+	const completedMatches: MatchType[] = matches.filter(
+		(m) => m.status === "finished",
+	);
+
+	console.log("[GROUPVIEW] Tous les matchs:", matches);
+	console.log("[GROUPVIEW] Live matches:", liveMatches);
+	console.log(
+		"[GROUPVIEW] Upcoming matches (status === 'scheduled' or 'upcoming'):",
+		upcomingMatches,
+	);
+	console.log("[GROUPVIEW] Completed matches:", completedMatches);
 
 	// Obtenir les prédictions de l'utilisateur pour ce groupe
 	const getUserPrediction = (matchId: string): Prediction | undefined => {
@@ -119,19 +201,57 @@ export function GroupView({ groupId, onBack }: GroupViewProps) {
 		return predictions.filter((p) => p.match_id === matchId);
 	};
 
-	// Classement du groupe
+	// Classement du groupe - Calculer les scores par utilisateur
 	const leaderboard: Array<{
 		userId: string;
 		userName: string;
 		score: number;
-	}> = [];
+	}> = (() => {
+		const scoreMap = new Map<
+			string,
+			{ userId: string; userName: string; score: number }
+		>();
 
-	const handleOpenPredictionModal = (match: Match) => {
+		// Initialiser avec tous les membres du groupe
+		if (group?.members) {
+			for (const memberId of group.members) {
+				scoreMap.set(memberId, {
+					userId: memberId,
+					userName: memberId,
+					score: 0,
+				});
+			}
+		}
+
+		// Agréger les points des prédictions
+		for (const prediction of predictions) {
+			const userId = prediction.user_id;
+			const points = prediction.points_earned ?? 0;
+			const userName = prediction.user_name || userId;
+
+			const entry = scoreMap.get(userId);
+			if (entry) {
+				entry.score += points;
+				entry.userName = userName; // Mettre à jour le nom réel
+			} else {
+				scoreMap.set(userId, {
+					userId,
+					userName,
+					score: points,
+				});
+			}
+		}
+
+		// Trier par score décroissant
+		return Array.from(scoreMap.values()).sort((a, b) => b.score - a.score);
+	})();
+
+	const handleOpenPredictionModal = (match: MatchType) => {
 		setSelectedMatch(match);
 		setIsPredictionModalOpen(true);
 	};
 
-	const handleOpenMatchPredictionsModal = (match: Match) => {
+	const handleOpenMatchPredictionsModal = (match: MatchType) => {
 		setSelectedMatchForPredictions(match);
 		setIsMatchPredictionsModalOpen(true);
 	};
@@ -143,21 +263,68 @@ export function GroupView({ groupId, onBack }: GroupViewProps) {
 		predictedScoreA?: number;
 		predictedScoreB?: number;
 	}) => {
-		const newPrediction: Prediction = {
-			id: `pred_${Date.now()}`,
-			user_id: groupId,
-			match_id: predictionData.matchId,
-			prediction: "",
-			predicted_winner: predictionData.predictedWinner,
-			predicted_score_a: predictionData.predictedScoreA,
-			predicted_score_b: predictionData.predictedScoreB,
-			points_earned: 0,
-			is_correct: false,
-			is_exact_score: false,
+		const submitPredictionAsync = async () => {
+			try {
+				const { prediction, error } = await submitGroupPrediction(
+					predictionData.groupId,
+					predictionData.matchId,
+					{
+						predicted_winner: predictionData.predictedWinner,
+						predicted_score_a: predictionData.predictedScoreA,
+						predicted_score_b: predictionData.predictedScoreB,
+					},
+				);
+
+				if (error || !prediction) {
+					toast.error(error || "Erreur lors de l'enregistrement du pronostic");
+					return;
+				}
+
+				console.log("[GROUPVIEW] Prédiction soumise:", prediction);
+
+				// Vérifier si c'est une mise à jour ou une création
+				const existingIndex = predictions.findIndex(
+					(p) => p.match_id === prediction.match_id,
+				);
+
+				let updatedPredictions: Prediction[];
+				if (existingIndex !== -1) {
+					// Remplacer la prédiction existante
+					updatedPredictions = [...predictions];
+					updatedPredictions[existingIndex] = prediction;
+					console.log(
+						"[GROUPVIEW] Prédiction mise à jour à l'index:",
+						existingIndex,
+					);
+				} else {
+					// Ajouter la nouvelle prédiction
+					updatedPredictions = [...predictions, prediction];
+					console.log("[GROUPVIEW] Nouvelle prédiction ajoutée");
+				}
+
+				setPredictions(updatedPredictions);
+
+				// Fermer la modale
+				setIsPredictionModalOpen(false);
+
+				// Recharger les statistiques de l'utilisateur
+				const { stats, error: statsError } = await getUserGroupStats(groupId);
+				if (!statsError && stats) {
+					setUserStats(stats);
+				}
+
+				toast.success(
+					existingIndex !== -1
+						? "Pronostic mis à jour avec succès !"
+						: "Pronostic enregistré avec succès !",
+				);
+			} catch (err) {
+				console.error("Erreur lors de l'envoi du pronostic:", err);
+				toast.error("Erreur lors de l'enregistrement du pronostic");
+			}
 		};
 
-		setPredictions([...predictions, newPrediction]);
-		toast.success("Pronostic enregistré avec succès !");
+		submitPredictionAsync();
 	};
 
 	const handleShareInviteCode = () => {
@@ -202,6 +369,9 @@ export function GroupView({ groupId, onBack }: GroupViewProps) {
 			<div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
 				{/* Contenu principal : Matchs */}
 				<div className="lg:col-span-2">
+					{/* Statistiques de l'utilisateur */}
+					<UserStatsCard stats={userStats} userName={user?.username} />
+
 					{/* Matchs LIVE */}
 					{liveMatches.length > 0 && (
 						<div className="mb-8">
@@ -253,6 +423,7 @@ export function GroupView({ groupId, onBack }: GroupViewProps) {
 										match={match}
 										prediction={getUserPrediction(match.id)}
 										onPredict={() => handleOpenPredictionModal(match)}
+										onEditPrediction={() => handleOpenPredictionModal(match)}
 										onViewPredictions={() =>
 											handleOpenMatchPredictionsModal(match)
 										}
@@ -290,7 +461,7 @@ export function GroupView({ groupId, onBack }: GroupViewProps) {
 				{/* Sidebar : Classement */}
 				<div className="lg:col-span-1">
 					<div className="lg:sticky lg:top-6">
-						<Leaderboard entries={leaderboard} currentUserId={groupId} />
+						<Leaderboard entries={leaderboard} currentUserId={user?.id} />
 					</div>
 				</div>
 			</div>{" "}
@@ -301,6 +472,9 @@ export function GroupView({ groupId, onBack }: GroupViewProps) {
 				isOpen={isPredictionModalOpen}
 				onClose={() => setIsPredictionModalOpen(false)}
 				onSubmit={handleSubmitPrediction}
+				existingPrediction={
+					selectedMatch ? getUserPrediction(selectedMatch.id) : undefined
+				}
 			/>
 			{/* Modale des pronostics du groupe */}
 			<MatchPredictionsModal
@@ -312,6 +486,7 @@ export function GroupView({ groupId, onBack }: GroupViewProps) {
 				}
 				isOpen={isMatchPredictionsModalOpen}
 				onClose={() => setIsMatchPredictionsModalOpen(false)}
+				groupId={groupId}
 			/>
 		</div>
 	);

@@ -42,3 +42,13 @@ export {
 	type UserProfile,
 	type ProfileResponse,
 } from "./profileService";
+
+// Predictions Service
+export {
+	getGroupPredictions,
+	getMatchPredictions,
+	submitGroupPrediction,
+	type Prediction,
+	type PredictionsResponse,
+} from "./predictionsService";
+
